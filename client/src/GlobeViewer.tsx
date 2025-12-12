@@ -33,16 +33,40 @@ export default function GlobeViewer({ fitsData, show2DMap, onToggle2DMap }: {
         const normalized = (value - fitsData.min) / range;
         
         let r, g, b;
-        if (normalized < 0.5) {
-          const t = normalized * 2;
-          r = Math.floor(t * 255);
-          g = Math.floor(t * 255);
-          b = 255;
+        // Official SDO/HMI magnetogram color palette
+        // Negative polarity: Yellow → Orange → Red (darker with stronger fields)
+        // Weak fields: Gray
+        // Positive polarity: Green → Blue (darker with stronger fields)
+        
+        if (normalized < 0.4) {
+          // Strong negative → Medium negative: Dark Red → Orange → Bright Yellow
+          const t = normalized / 0.4;
+          r = Math.floor(100 + t * 155);  // 100 → 255
+          g = Math.floor(t * 200);         // 0 → 200
+          b = 0;
+        } else if (normalized < 0.48) {
+          // Weak negative: Yellow → Light Gray
+          const t = (normalized - 0.4) / 0.08;
+          r = Math.floor(255 - t * 55);   // 255 → 200
+          g = Math.floor(200 - t * 50);   // 200 → 150
+          b = Math.floor(t * 150);        // 0 → 150
+        } else if (normalized < 0.52) {
+          // Weak field center: Gray
+          r = 150;
+          g = 150;
+          b = 150;
+        } else if (normalized < 0.6) {
+          // Weak positive: Light Gray → Bright Green
+          const t = (normalized - 0.52) / 0.08;
+          r = Math.floor(150 - t * 150);  // 150 → 0
+          g = Math.floor(150 + t * 105);  // 150 → 255
+          b = Math.floor(150 - t * 50);   // 150 → 100
         } else {
-          const t = (normalized - 0.5) * 2;
-          r = 255;
-          g = Math.floor((1 - t) * 255);
-          b = Math.floor((1 - t) * 255);
+          // Medium positive → Strong positive: Bright Green → Dark Blue
+          const t = (normalized - 0.6) / 0.4;
+          r = 0;
+          g = Math.floor(255 - t * 255);  // 255 → 0
+          b = Math.floor(100 + t * 155);  // 100 → 255
         }
         
         const idx = (y * fitsData.width + x) * 4;
@@ -79,16 +103,40 @@ export default function GlobeViewer({ fitsData, show2DMap, onToggle2DMap }: {
         const normalized = (value - fitsData.min) / range;
         
         let r, g, b;
-        if (normalized < 0.5) {
-          const t = normalized * 2;
-          r = Math.floor(t * 255);
-          g = Math.floor(t * 255);
-          b = 255;
+        // Official SDO/HMI magnetogram color palette
+        // Negative polarity: Yellow → Orange → Red (darker with stronger fields)
+        // Weak fields: Gray
+        // Positive polarity: Green → Blue (darker with stronger fields)
+        
+        if (normalized < 0.4) {
+          // Strong negative → Medium negative: Dark Red → Orange → Bright Yellow
+          const t = normalized / 0.4;
+          r = Math.floor(100 + t * 155);  // 100 → 255
+          g = Math.floor(t * 200);         // 0 → 200
+          b = 0;
+        } else if (normalized < 0.48) {
+          // Weak negative: Yellow → Light Gray
+          const t = (normalized - 0.4) / 0.08;
+          r = Math.floor(255 - t * 55);   // 255 → 200
+          g = Math.floor(200 - t * 50);   // 200 → 150
+          b = Math.floor(t * 150);        // 0 → 150
+        } else if (normalized < 0.52) {
+          // Weak field center: Gray
+          r = 150;
+          g = 150;
+          b = 150;
+        } else if (normalized < 0.6) {
+          // Weak positive: Light Gray → Bright Green
+          const t = (normalized - 0.52) / 0.08;
+          r = Math.floor(150 - t * 150);  // 150 → 0
+          g = Math.floor(150 + t * 105);  // 150 → 255
+          b = Math.floor(150 - t * 50);   // 150 → 100
         } else {
-          const t = (normalized - 0.5) * 2;
-          r = 255;
-          g = Math.floor((1 - t) * 255);
-          b = Math.floor((1 - t) * 255);
+          // Medium positive → Strong positive: Bright Green → Dark Blue
+          const t = (normalized - 0.6) / 0.4;
+          r = 0;
+          g = Math.floor(255 - t * 255);  // 255 → 0
+          b = Math.floor(100 + t * 155);  // 100 → 255
         }
         
         const idx = (y * fitsData.width + x) * 4;
