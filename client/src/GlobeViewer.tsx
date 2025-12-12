@@ -2,6 +2,7 @@ import { useRef, useEffect } from 'react';
 import type { FITSData } from './fitsUtils';
 import * as THREE from 'three';
 import { X } from 'lucide-react';
+import React from 'react';
 
 export default function GlobeViewer({ fitsData, show2DMap, onToggle2DMap }: {
   fitsData: FITSData;
@@ -17,6 +18,10 @@ export default function GlobeViewer({ fitsData, show2DMap, onToggle2DMap }: {
     sphere: THREE.Mesh;
     animationId: number;
   } | null>(null);
+  
+  const [useFixedScale, setUseFixedScale] = React.useState(false);
+  const [fixedMin, setFixedMin] = React.useState('-500');
+  const [fixedMax, setFixedMax] = React.useState('500');
 
   const createMagneticFieldTexture = (fitsData: FITSData): THREE.Texture => {
     const canvas = document.createElement('canvas');
@@ -25,12 +30,24 @@ export default function GlobeViewer({ fitsData, show2DMap, onToggle2DMap }: {
     const ctx = canvas.getContext('2d')!;
     
     const imageData = ctx.createImageData(fitsData.width, fitsData.height);
-    const range = fitsData.max - fitsData.min;
+    
+    // Determine range based on mode
+    let minVal, maxVal;
+    if (useFixedScale) {
+      minVal = parseFloat(fixedMin);
+      maxVal = parseFloat(fixedMax);
+    } else {
+      minVal = fitsData.min;
+      maxVal = fitsData.max;
+    }
+    const range = maxVal - minVal;
     
     for (let y = 0; y < fitsData.height; y++) {
       for (let x = 0; x < fitsData.width; x++) {
         const value = fitsData.data[y][x];
-        const normalized = (value - fitsData.min) / range;
+        // Clamp value to range and normalize
+        const clampedValue = Math.max(minVal, Math.min(maxVal, value));
+        const normalized = (clampedValue - minVal) / range;
         
         let r, g, b;
         // Official SDO/HMI magnetogram color palette
@@ -95,12 +112,24 @@ export default function GlobeViewer({ fitsData, show2DMap, onToggle2DMap }: {
     canvas.height = fitsData.height;
     
     const imageData = ctx.createImageData(fitsData.width, fitsData.height);
-    const range = fitsData.max - fitsData.min;
+    
+    // Determine range based on mode
+    let minVal, maxVal;
+    if (useFixedScale) {
+      minVal = parseFloat(fixedMin);
+      maxVal = parseFloat(fixedMax);
+    } else {
+      minVal = fitsData.min;
+      maxVal = fitsData.max;
+    }
+    const range = maxVal - minVal;
     
     for (let y = 0; y < fitsData.height; y++) {
       for (let x = 0; x < fitsData.width; x++) {
         const value = fitsData.data[y][x];
-        const normalized = (value - fitsData.min) / range;
+        // Clamp value to range and normalize
+        const clampedValue = Math.max(minVal, Math.min(maxVal, value));
+        const normalized = (clampedValue - minVal) / range;
         
         let r, g, b;
         // Official SDO/HMI magnetogram color palette
@@ -275,10 +304,54 @@ export default function GlobeViewer({ fitsData, show2DMap, onToggle2DMap }: {
         sceneRef.current.renderer.dispose();
       }
     };
-  }, [fitsData]);
+  }, [fitsData, useFixedScale, fixedMin, fixedMax]);
 
   return (
     <>
+      {/* Color Scale Controls */}
+      <div className="absolute top-4 left-4 bg-black/70 backdrop-blur p-4 rounded-lg text-white z-10">
+        <div className="flex items-center gap-3 mb-2">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={useFixedScale}
+              onChange={(e) => setUseFixedScale(e.target.checked)}
+              className="w-4 h-4"
+            />
+            <span className="text-sm font-medium">Fixed Scale Mode</span>
+          </label>
+        </div>
+        
+        {useFixedScale && (
+          <div className="flex gap-3 items-center mt-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-gray-300">Min (G)</label>
+              <input
+                type="number"
+                value={fixedMin}
+                onChange={(e) => setFixedMin(e.target.value)}
+                className="w-24 px-2 py-1 bg-gray-800 border border-gray-600 rounded text-sm"
+                step="100"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-gray-300">Max (G)</label>
+              <input
+                type="number"
+                value={fixedMax}
+                onChange={(e) => setFixedMax(e.target.value)}
+                className="w-24 px-2 py-1 bg-gray-800 border border-gray-600 rounded text-sm"
+                step="100"
+              />
+            </div>
+          </div>
+        )}
+        
+        <div className="mt-3 pt-3 border-t border-gray-600 text-xs text-gray-300">
+          <div>Data range: {fitsData?.min.toFixed(1)} to {fitsData?.max.toFixed(1)} G</div>
+        </div>
+      </div>
+      
       <div 
         ref={containerRef}
         className={`w-full h-full transition-opacity duration-300 ${show2DMap ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
