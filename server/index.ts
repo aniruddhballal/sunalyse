@@ -1,16 +1,27 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import fetch from 'node-fetch'; // npm i node-fetch@2
+import 'dotenv/config';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors());
+app.use(
+  cors({
+    origin: process.env.CORS_ORIGINS?.split(',') ?? '*',
+  })
+);
+
 app.use(express.json());
 
 // Base URL for your HF dataset
-const HF_USER = 'aniruddhballal';
-const HF_REPO = 'fits-data';
+if (!process.env.HF_USER || !process.env.HF_REPO) {
+  throw new Error('HF_USER and HF_REPO must be set');
+}
+
+const HF_USER = process.env.HF_USER;
+const HF_REPO = process.env.HF_REPO;
+
 const HF_API_FILES = `https://huggingface.co/api/datasets/${HF_USER}/${HF_REPO}/tree/main`;
 const HF_BASE_URL = `https://huggingface.co/datasets/${HF_USER}/${HF_REPO}/resolve/main`;
 
@@ -50,14 +61,13 @@ app.get('/api/fits/carrington/:rotationNumber', async (req: Request, res: Respon
     const filename = `hmi.Synoptic_Mr_small.${rotationNumber}.fits`;
     const url = `${HF_BASE_URL}/${filename}`;
 
-    // Check if file exists
-    const head = await fetch(url, { method: 'HEAD' });
-    if (!head.ok) {
-      return res.status(404).json({ error: `No FITS file found for rotation ${rotationNumber}` });
+    const hfResponse = await fetch(url);
+    if (!hfResponse.ok) {
+      return res
+        .status(404)
+        .json({ error: `No FITS file found for rotation ${rotationNumber}` });
     }
 
-    // Stream file to client
-    const hfResponse = await fetch(url);
     res.setHeader('Content-Type', 'application/fits');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     hfResponse.body.pipe(res);

@@ -4,6 +4,11 @@ import DetailsPanel from './DetailsPanel';
 import { parseFITS } from './fitsUtils';
 import type { FITSData } from './fitsUtils';
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL;
+if (!API_BASE) {
+  throw new Error('VITE_API_BASE_URL is not defined');
+}
+
 // UploadSection component
 interface UploadSectionProps {
   isUploading: boolean;
@@ -186,11 +191,10 @@ export default function SolarMagneticFieldGlobe() {
       }, 200);
 
       // Fetch FITS file from backend
-      // Replace this URL with your actual backend endpoint
-      // const response = await fetch(`/api/fits/carrington/${rotationNum}`);
-      // const response = await fetch(`http://localhost:3001/api/fits/carrington/${rotationNum}`);
-      const response = await fetch(`http://localhost:3001/api/fits/carrington/${rotationNum}`);
-      
+      const response = await fetch(
+        `${API_BASE}/api/fits/carrington/${rotationNum}`
+      );
+
       clearInterval(progressInterval);
       setUploadProgress(100);
 

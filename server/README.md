@@ -110,7 +110,7 @@ server/
 Use the Carrington endpoint in your frontend:
 
 ```ts
-const response = await fetch(`http://localhost:3001/api/fits/carrington/${rotationNum}`);
+const response = await fetch(`${API_BASE}/api/fits/carrington/${rotationNum}`);
 ```
 
 CORS is already configured in the server. Make sure frontend and backend ports match.
