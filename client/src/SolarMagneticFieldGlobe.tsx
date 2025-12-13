@@ -267,35 +267,33 @@ export default function SolarMagneticFieldGlobe() {
             show2DMap={show2DMap}
           />
 
-          <div className="absolute top-6 left-6 space-y-2">
-            <h1 className="text-xl font-light text-white tracking-wide">
-              Solar Magnetic Field
-            </h1>
-            <div className="text-gray-400 text-xs font-light">{fileName}</div>
-          </div>
-
-          <div className="absolute bottom-6 left-6 space-y-2">
+          <div 
+            className="absolute left-6 space-y-2 z-20 pointer-events-auto"
+            style={{ bottom: '10vh' }}
+            onTouchStart={(e) => e.stopPropagation()}
+            onTouchMove={(e) => e.stopPropagation()}
+          >
             <button
               onClick={() => setShow2DMap(!show2DMap)}
-              className="block text-white text-xs font-light hover:text-gray-300 transition-colors"
+              className="block text-white text-xs font-light hover:text-gray-300 transition-colors bg-black/50 px-3 py-2 rounded backdrop-blur"
             >
               {show2DMap ? 'Show 3D Globe' : 'Show 2D Map'}
             </button>
             <button
               onClick={() => setShowDetails(!showDetails)}
-              className="block text-white text-xs font-light hover:text-gray-300 transition-colors"
+              className="block text-white text-xs font-light hover:text-gray-300 transition-colors bg-black/50 px-3 py-2 rounded backdrop-blur"
             >
               {showDetails ? 'Hide' : 'Show'} Details
             </button>
             <button
               onClick={handleReset}
-              className="block text-white text-xs font-light hover:text-gray-300 transition-colors"
+              className="block text-white text-xs font-light hover:text-gray-300 transition-colors bg-black/50 px-3 py-2 rounded backdrop-blur"
             >
               View Another
             </button>
           </div>
 
-          <div className="absolute bottom-6 right-6 text-gray-500 text-xs font-light">
+          <div className="absolute bottom-6 right-6 text-gray-500 text-xs font-light z-20 pointer-events-none">
             {show2DMap ? 'Viewing 2D Map' : 'Drag to rotate'}
           </div>
 

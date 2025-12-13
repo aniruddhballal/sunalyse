@@ -38,14 +38,25 @@ export default function DetailsPanel({ fitsData, fileName, onClose }: {
   const dates = crNumber ? getCarringtonDates(crNumber) : null;
 
   return (
-    <div className="absolute top-6 right-6 bg-black/80 border border-gray-800 p-4 space-y-3 backdrop-blur z-20 pointer-events-auto">
-      <button
-        onClick={onClose}
-        className="absolute top-2 right-2 text-gray-400 hover:text-white"
-      >
-        <X size={16} />
-      </button>
-      <div className="space-y-2 text-sm">
+    <div 
+      className="absolute top-6 right-6 bg-black/80 border border-gray-800 p-4 space-y-3 backdrop-blur z-20 pointer-events-auto"
+      onTouchStart={(e) => e.stopPropagation()}
+      onTouchMove={(e) => e.stopPropagation()}
+    >
+      <div className="flex justify-between items-start mb-3">
+        <div>
+          <h2 className="text-lg font-light text-white tracking-wide">Solar Magnetic Field</h2>
+          <div className="text-gray-400 text-xs font-light mt-1">{fileName}</div>
+        </div>
+        <button
+          onClick={onClose}
+          className="text-gray-400 hover:text-white ml-4"
+        >
+          <X size={16} />
+        </button>
+      </div>
+      
+      <div className="space-y-2 text-sm border-t border-gray-800 pt-3">
         {crNumber && dates && (
           <>
             <div>
