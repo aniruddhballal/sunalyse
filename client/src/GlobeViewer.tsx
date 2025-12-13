@@ -206,13 +206,14 @@ export default function GlobeViewer({ fitsData, show2DMap }: {
       if (e.touches.length === 1) {
         isDragging = true;
         previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        e.preventDefault(); // Only prevent default on the canvas
       }
     };
     
     const onTouchMove = (e: TouchEvent) => {
       if (!isDragging || e.touches.length !== 1) return;
       
-      e.preventDefault();
+      e.preventDefault(); // Only prevent scrolling when actively dragging the globe
       const deltaX = e.touches[0].clientX - previousMousePosition.x;
       const deltaY = e.touches[0].clientY - previousMousePosition.y;
       
@@ -230,8 +231,8 @@ export default function GlobeViewer({ fitsData, show2DMap }: {
     renderer.domElement.addEventListener('mousemove', onMouseMove);
     renderer.domElement.addEventListener('mouseup', onMouseUp);
     renderer.domElement.addEventListener('mouseleave', onMouseUp);
-    renderer.domElement.addEventListener('touchstart', onTouchStart, { passive: false });
-    renderer.domElement.addEventListener('touchmove', onTouchMove, { passive: false });
+    renderer.domElement.addEventListener('touchstart', onTouchStart);
+    renderer.domElement.addEventListener('touchmove', onTouchMove);
     renderer.domElement.addEventListener('touchend', onTouchEnd);
     renderer.domElement.addEventListener('touchcancel', onTouchEnd);
     
