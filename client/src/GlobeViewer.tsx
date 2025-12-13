@@ -1,13 +1,10 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import type { FITSData } from './fitsUtils';
 import * as THREE from 'three';
-import { X } from 'lucide-react';
-import React from 'react';
 
-export default function GlobeViewer({ fitsData, show2DMap, onToggle2DMap }: {
+export default function GlobeViewer({ fitsData, show2DMap }: {
   fitsData: FITSData;
   show2DMap: boolean;
-  onToggle2DMap: (show: boolean) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvas2DRef = useRef<HTMLCanvasElement>(null);
@@ -19,9 +16,41 @@ export default function GlobeViewer({ fitsData, show2DMap, onToggle2DMap }: {
     animationId: number;
   } | null>(null);
   
-  const [useFixedScale, setUseFixedScale] = React.useState(false);
-  const [fixedMin, setFixedMin] = React.useState('-500');
-  const [fixedMax, setFixedMax] = React.useState('500');
+  const [useFixedScale, setUseFixedScale] = useState(false);
+  const [fixedMin, setFixedMin] = useState('-500');
+  const [fixedMax, setFixedMax] = useState('500');
+
+  const getColorForValue = (normalized: number): [number, number, number] => {
+    let r, g, b;
+    
+    if (normalized < 0.4) {
+      const t = normalized / 0.4;
+      r = Math.floor(100 + t * 155);
+      g = Math.floor(t * 200);
+      b = 0;
+    } else if (normalized < 0.48) {
+      const t = (normalized - 0.4) / 0.08;
+      r = Math.floor(255 - t * 55);
+      g = Math.floor(200 - t * 50);
+      b = Math.floor(t * 150);
+    } else if (normalized < 0.52) {
+      r = 150;
+      g = 150;
+      b = 150;
+    } else if (normalized < 0.6) {
+      const t = (normalized - 0.52) / 0.08;
+      r = Math.floor(150 - t * 150);
+      g = Math.floor(150 + t * 105);
+      b = Math.floor(150 - t * 50);
+    } else {
+      const t = (normalized - 0.6) / 0.4;
+      r = 0;
+      g = Math.floor(255 - t * 255);
+      b = Math.floor(100 + t * 155);
+    }
+    
+    return [r, g, b];
+  };
 
   const createMagneticFieldTexture = (fitsData: FITSData): THREE.Texture => {
     const canvas = document.createElement('canvas');
@@ -31,7 +60,6 @@ export default function GlobeViewer({ fitsData, show2DMap, onToggle2DMap }: {
     
     const imageData = ctx.createImageData(fitsData.width, fitsData.height);
     
-    // Determine range based on mode
     let minVal, maxVal;
     if (useFixedScale) {
       minVal = parseFloat(fixedMin);
@@ -45,46 +73,10 @@ export default function GlobeViewer({ fitsData, show2DMap, onToggle2DMap }: {
     for (let y = 0; y < fitsData.height; y++) {
       for (let x = 0; x < fitsData.width; x++) {
         const value = fitsData.data[y][x];
-        // Clamp value to range and normalize
         const clampedValue = Math.max(minVal, Math.min(maxVal, value));
         const normalized = (clampedValue - minVal) / range;
         
-        let r, g, b;
-        // Official SDO/HMI magnetogram color palette
-        // Negative polarity: Yellow → Orange → Red (darker with stronger fields)
-        // Weak fields: Gray
-        // Positive polarity: Green → Blue (darker with stronger fields)
-        
-        if (normalized < 0.4) {
-          // Strong negative → Medium negative: Dark Red → Orange → Bright Yellow
-          const t = normalized / 0.4;
-          r = Math.floor(100 + t * 155);  // 100 → 255
-          g = Math.floor(t * 200);         // 0 → 200
-          b = 0;
-        } else if (normalized < 0.48) {
-          // Weak negative: Yellow → Light Gray
-          const t = (normalized - 0.4) / 0.08;
-          r = Math.floor(255 - t * 55);   // 255 → 200
-          g = Math.floor(200 - t * 50);   // 200 → 150
-          b = Math.floor(t * 150);        // 0 → 150
-        } else if (normalized < 0.52) {
-          // Weak field center: Gray
-          r = 150;
-          g = 150;
-          b = 150;
-        } else if (normalized < 0.6) {
-          // Weak positive: Light Gray → Bright Green
-          const t = (normalized - 0.52) / 0.08;
-          r = Math.floor(150 - t * 150);  // 150 → 0
-          g = Math.floor(150 + t * 105);  // 150 → 255
-          b = Math.floor(150 - t * 50);   // 150 → 100
-        } else {
-          // Medium positive → Strong positive: Bright Green → Dark Blue
-          const t = (normalized - 0.6) / 0.4;
-          r = 0;
-          g = Math.floor(255 - t * 255);  // 255 → 0
-          b = Math.floor(100 + t * 155);  // 100 → 255
-        }
+        const [r, g, b] = getColorForValue(normalized);
         
         const idx = (y * fitsData.width + x) * 4;
         imageData.data[idx] = r;
@@ -108,12 +100,13 @@ export default function GlobeViewer({ fitsData, show2DMap, onToggle2DMap }: {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
-    canvas.width = fitsData.width;
-    canvas.height = fitsData.height;
+    const dataWidth = fitsData.width;
+    const dataHeight = fitsData.height;
+    canvas.width = dataWidth;
+    canvas.height = dataHeight;
     
-    const imageData = ctx.createImageData(fitsData.width, fitsData.height);
+    const imageData = ctx.createImageData(dataWidth, dataHeight);
     
-    // Determine range based on mode
     let minVal, maxVal;
     if (useFixedScale) {
       minVal = parseFloat(fixedMin);
@@ -127,46 +120,10 @@ export default function GlobeViewer({ fitsData, show2DMap, onToggle2DMap }: {
     for (let y = 0; y < fitsData.height; y++) {
       for (let x = 0; x < fitsData.width; x++) {
         const value = fitsData.data[y][x];
-        // Clamp value to range and normalize
         const clampedValue = Math.max(minVal, Math.min(maxVal, value));
         const normalized = (clampedValue - minVal) / range;
         
-        let r, g, b;
-        // Official SDO/HMI magnetogram color palette
-        // Negative polarity: Yellow → Orange → Red (darker with stronger fields)
-        // Weak fields: Gray
-        // Positive polarity: Green → Blue (darker with stronger fields)
-        
-        if (normalized < 0.4) {
-          // Strong negative → Medium negative: Dark Red → Orange → Bright Yellow
-          const t = normalized / 0.4;
-          r = Math.floor(100 + t * 155);  // 100 → 255
-          g = Math.floor(t * 200);         // 0 → 200
-          b = 0;
-        } else if (normalized < 0.48) {
-          // Weak negative: Yellow → Light Gray
-          const t = (normalized - 0.4) / 0.08;
-          r = Math.floor(255 - t * 55);   // 255 → 200
-          g = Math.floor(200 - t * 50);   // 200 → 150
-          b = Math.floor(t * 150);        // 0 → 150
-        } else if (normalized < 0.52) {
-          // Weak field center: Gray
-          r = 150;
-          g = 150;
-          b = 150;
-        } else if (normalized < 0.6) {
-          // Weak positive: Light Gray → Bright Green
-          const t = (normalized - 0.52) / 0.08;
-          r = Math.floor(150 - t * 150);  // 150 → 0
-          g = Math.floor(150 + t * 105);  // 150 → 255
-          b = Math.floor(150 - t * 50);   // 150 → 100
-        } else {
-          // Medium positive → Strong positive: Bright Green → Dark Blue
-          const t = (normalized - 0.6) / 0.4;
-          r = 0;
-          g = Math.floor(255 - t * 255);  // 255 → 0
-          b = Math.floor(100 + t * 155);  // 100 → 255
-        }
+        const [r, g, b] = getColorForValue(normalized);
         
         const idx = (y * fitsData.width + x) * 4;
         imageData.data[idx] = r;
@@ -287,12 +244,10 @@ export default function GlobeViewer({ fitsData, show2DMap, onToggle2DMap }: {
     };
   };
 
+  // Initialize Three.js when not showing 2D map
   useEffect(() => {
-    if (fitsData) {
+    if (fitsData && !show2DMap) {
       initThreeJS(fitsData);
-      if (canvas2DRef.current) {
-        draw2DMap(canvas2DRef.current, fitsData);
-      }
     }
     
     return () => {
@@ -304,7 +259,14 @@ export default function GlobeViewer({ fitsData, show2DMap, onToggle2DMap }: {
         sceneRef.current.renderer.dispose();
       }
     };
-  }, [fitsData, useFixedScale, fixedMin, fixedMax]);
+  }, [fitsData, show2DMap, useFixedScale, fixedMin, fixedMax]);
+
+  // Draw 2D map whenever color settings change
+  useEffect(() => {
+    if (fitsData && canvas2DRef.current && show2DMap) {
+      draw2DMap(canvas2DRef.current, fitsData);
+    }
+  }, [fitsData, show2DMap, useFixedScale, fixedMin, fixedMax]);
 
   return (
     <>
@@ -352,26 +314,25 @@ export default function GlobeViewer({ fitsData, show2DMap, onToggle2DMap }: {
         </div>
       </div>
       
+      {/* 3D Globe Container */}
       <div 
         ref={containerRef}
-        className={`w-full h-full transition-opacity duration-300 ${show2DMap ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+        className={`w-full h-full transition-opacity duration-300 ${show2DMap ? 'hidden' : 'block'}`}
       />
       
+      {/* 2D Map Container */}
       {show2DMap && (
         <div className="absolute inset-0 flex items-center justify-center bg-black p-8">
-          <div className="relative max-w-full max-h-full">
-            <canvas 
-              ref={canvas2DRef}
-              className="w-full h-auto max-h-[90vh] object-contain"
-              style={{ imageRendering: 'pixelated' }}
-            />
-            <button
-              onClick={() => onToggle2DMap(false)}
-              className="absolute top-4 right-4 text-white hover:text-gray-300 bg-black/50 p-2 backdrop-blur"
-            >
-              <X size={24} />
-            </button>
-          </div>
+          <canvas 
+            ref={canvas2DRef}
+            style={{ 
+              maxWidth: '100%',
+              maxHeight: '100%',
+              width: 'auto',
+              height: 'auto',
+              imageRendering: 'auto'
+            }}
+          />
         </div>
       )}
     </>

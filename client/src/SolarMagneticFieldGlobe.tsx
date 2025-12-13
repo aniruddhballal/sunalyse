@@ -265,7 +265,6 @@ export default function SolarMagneticFieldGlobe() {
           <GlobeViewer
             fitsData={fitsData}
             show2DMap={show2DMap}
-            onToggle2DMap={setShow2DMap}
           />
 
           <div className="absolute top-6 left-6 space-y-2">
@@ -277,8 +276,14 @@ export default function SolarMagneticFieldGlobe() {
 
           <div className="absolute bottom-6 left-6 space-y-2">
             <button
+              onClick={() => setShow2DMap(!show2DMap)}
+              className="block text-white text-xs font-light hover:text-gray-300 transition-colors"
+            >
+              {show2DMap ? 'Show 3D Globe' : 'Show 2D Map'}
+            </button>
+            <button
               onClick={() => setShowDetails(!showDetails)}
-              className="text-white text-xs font-light hover:text-gray-300 transition-colors"
+              className="block text-white text-xs font-light hover:text-gray-300 transition-colors"
             >
               {showDetails ? 'Hide' : 'Show'} Details
             </button>
@@ -298,7 +303,6 @@ export default function SolarMagneticFieldGlobe() {
             <DetailsPanel
               fitsData={fitsData}
               onClose={() => setShowDetails(false)}
-              onOpen2DMap={() => setShow2DMap(true)}
             />
           )}
         </>
