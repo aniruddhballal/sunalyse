@@ -180,13 +180,41 @@ export default function GlobeViewer({ fitsData, show2DMap }: {
     let isDragging = false;
     let previousMousePosition = { x: 0, y: 0 };
     
+    // Raycaster to detect if click is on the sphere
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    
+    const isClickOnSphere = (clientX: number, clientY: number): boolean => {
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+      
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObject(sphere);
+      return intersects.length > 0;
+    };
+    
+    const updateCursor = (clientX: number, clientY: number) => {
+      if (isClickOnSphere(clientX, clientY)) {
+        renderer.domElement.style.cursor = 'grab';
+      } else {
+        renderer.domElement.style.cursor = 'default';
+      }
+    };
+    
     const onMouseDown = (e: MouseEvent) => {
-      isDragging = true;
-      previousMousePosition = { x: e.clientX, y: e.clientY };
+      if (isClickOnSphere(e.clientX, e.clientY)) {
+        isDragging = true;
+        previousMousePosition = { x: e.clientX, y: e.clientY };
+        renderer.domElement.style.cursor = 'grabbing';
+      }
     };
     
     const onMouseMove = (e: MouseEvent) => {
-      if (!isDragging) return;
+      if (!isDragging) {
+        updateCursor(e.clientX, e.clientY);
+        return;
+      }
       
       const deltaX = e.clientX - previousMousePosition.x;
       const deltaY = e.clientY - previousMousePosition.y;
@@ -199,21 +227,34 @@ export default function GlobeViewer({ fitsData, show2DMap }: {
     
     const onMouseUp = () => {
       isDragging = false;
+      renderer.domElement.style.cursor = 'default';
     };
     
     // Touch event handlers for mobile
+    let touchStartedOnCanvas = false;
+    
     const onTouchStart = (e: TouchEvent) => {
+      // Check if touch started on an interactive element
+      const target = e.target as HTMLElement;
+      if (target !== renderer.domElement) {
+        touchStartedOnCanvas = false;
+        return;
+      }
+      
       if (e.touches.length === 1) {
-        isDragging = true;
-        previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-        e.preventDefault(); // Only prevent default on the canvas
+        if (isClickOnSphere(e.touches[0].clientX, e.touches[0].clientY)) {
+          touchStartedOnCanvas = true;
+          isDragging = true;
+          previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        }
       }
     };
     
     const onTouchMove = (e: TouchEvent) => {
-      if (!isDragging || e.touches.length !== 1) return;
+      if (!touchStartedOnCanvas || !isDragging || e.touches.length !== 1) return;
       
-      e.preventDefault(); // Only prevent scrolling when actively dragging the globe
+      // Only prevent default if we're actually rotating
+      e.preventDefault();
       const deltaX = e.touches[0].clientX - previousMousePosition.x;
       const deltaY = e.touches[0].clientY - previousMousePosition.y;
       
@@ -225,14 +266,15 @@ export default function GlobeViewer({ fitsData, show2DMap }: {
     
     const onTouchEnd = () => {
       isDragging = false;
+      touchStartedOnCanvas = false;
     };
     
     renderer.domElement.addEventListener('mousedown', onMouseDown);
     renderer.domElement.addEventListener('mousemove', onMouseMove);
     renderer.domElement.addEventListener('mouseup', onMouseUp);
     renderer.domElement.addEventListener('mouseleave', onMouseUp);
-    renderer.domElement.addEventListener('touchstart', onTouchStart);
-    renderer.domElement.addEventListener('touchmove', onTouchMove);
+    renderer.domElement.addEventListener('touchstart', onTouchStart, { passive: true });
+    renderer.domElement.addEventListener('touchmove', onTouchMove, { passive: false });
     renderer.domElement.addEventListener('touchend', onTouchEnd);
     renderer.domElement.addEventListener('touchcancel', onTouchEnd);
     
@@ -305,7 +347,11 @@ export default function GlobeViewer({ fitsData, show2DMap }: {
   return (
     <>
       {/* Color Scale Controls */}
-      <div className="absolute top-4 left-4 bg-black/70 backdrop-blur p-4 rounded-lg text-white z-10">
+      <div 
+        className="absolute top-4 left-4 bg-black/70 backdrop-blur p-4 rounded-lg text-white z-20 pointer-events-auto"
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center gap-3 mb-2">
           <label className="flex items-center gap-2 cursor-pointer">
             <input
@@ -351,8 +397,8 @@ export default function GlobeViewer({ fitsData, show2DMap }: {
       {/* 3D Globe Container */}
       <div 
         ref={containerRef}
-        className={`w-full h-full transition-opacity duration-300 ${show2DMap ? 'hidden' : 'block'}`}
-        style={{ touchAction: 'none' }}
+        className={`absolute inset-0 transition-opacity duration-300 ${show2DMap ? 'hidden' : 'block'}`}
+        style={{ touchAction: 'pan-y pan-x pinch-zoom' }}
       />
       
       {/* 2D Map Container */}
