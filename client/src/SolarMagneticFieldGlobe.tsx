@@ -238,7 +238,7 @@ export default function SolarMagneticFieldGlobe() {
   };
 
   return (
-    <div className="relative w-full h-screen bg-black overflow-hidden">
+    <div className="relative w-full h-screen bg-black overflow-hidden" style={{ minHeight: '100dvh' }}>
       <input
         ref={fileInputRef}
         type="file"
