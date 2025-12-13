@@ -38,7 +38,7 @@ export default function DetailsPanel({ fitsData, fileName, onClose }: {
   const dates = crNumber ? getCarringtonDates(crNumber) : null;
 
   return (
-    <div className="absolute top-6 right-6 bg-black/80 border border-gray-800 p-4 space-y-3 backdrop-blur">
+    <div className="absolute top-6 right-6 bg-black/80 border border-gray-800 p-4 space-y-3 backdrop-blur z-20 pointer-events-auto">
       <button
         onClick={onClose}
         className="absolute top-2 right-2 text-gray-400 hover:text-white"

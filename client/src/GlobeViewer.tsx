@@ -352,6 +352,7 @@ export default function GlobeViewer({ fitsData, show2DMap }: {
       <div 
         ref={containerRef}
         className={`w-full h-full transition-opacity duration-300 ${show2DMap ? 'hidden' : 'block'}`}
+        style={{ touchAction: 'none' }}
       />
       
       {/* 2D Map Container */}
