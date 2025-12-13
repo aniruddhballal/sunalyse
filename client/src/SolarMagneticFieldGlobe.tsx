@@ -302,6 +302,7 @@ export default function SolarMagneticFieldGlobe() {
           {showDetails && (
             <DetailsPanel
               fitsData={fitsData}
+              fileName={fileName}
               onClose={() => setShowDetails(false)}
             />
           )}
