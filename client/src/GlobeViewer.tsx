@@ -201,10 +201,39 @@ export default function GlobeViewer({ fitsData, show2DMap }: {
       isDragging = false;
     };
     
+    // Touch event handlers for mobile
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 1) {
+        isDragging = true;
+        previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      }
+    };
+    
+    const onTouchMove = (e: TouchEvent) => {
+      if (!isDragging || e.touches.length !== 1) return;
+      
+      e.preventDefault();
+      const deltaX = e.touches[0].clientX - previousMousePosition.x;
+      const deltaY = e.touches[0].clientY - previousMousePosition.y;
+      
+      sphere.rotation.y += deltaX * 0.01;
+      sphere.rotation.x += deltaY * 0.01;
+      
+      previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    };
+    
+    const onTouchEnd = () => {
+      isDragging = false;
+    };
+    
     renderer.domElement.addEventListener('mousedown', onMouseDown);
     renderer.domElement.addEventListener('mousemove', onMouseMove);
     renderer.domElement.addEventListener('mouseup', onMouseUp);
     renderer.domElement.addEventListener('mouseleave', onMouseUp);
+    renderer.domElement.addEventListener('touchstart', onTouchStart, { passive: false });
+    renderer.domElement.addEventListener('touchmove', onTouchMove, { passive: false });
+    renderer.domElement.addEventListener('touchend', onTouchEnd);
+    renderer.domElement.addEventListener('touchcancel', onTouchEnd);
     
     const animate = () => {
       const animationId = requestAnimationFrame(animate);
@@ -241,6 +270,10 @@ export default function GlobeViewer({ fitsData, show2DMap }: {
       renderer.domElement.removeEventListener('mousemove', onMouseMove);
       renderer.domElement.removeEventListener('mouseup', onMouseUp);
       renderer.domElement.removeEventListener('mouseleave', onMouseUp);
+      renderer.domElement.removeEventListener('touchstart', onTouchStart);
+      renderer.domElement.removeEventListener('touchmove', onTouchMove);
+      renderer.domElement.removeEventListener('touchend', onTouchEnd);
+      renderer.domElement.removeEventListener('touchcancel', onTouchEnd);
     };
   };
 
