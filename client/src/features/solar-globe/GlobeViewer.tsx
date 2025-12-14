@@ -20,6 +20,15 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
   
   const isRotatingRef = useRef(isRotating);
   const currentFitsDataRef = useRef<FITSData | null>(null);
+  const transitionRef = useRef<{
+    isTransitioning: boolean;
+    startTime: number;
+    duration: number;
+    oldImageData: ImageData | null;
+    newImageData: ImageData | null;
+    canvas: HTMLCanvasElement;
+    ctx: CanvasRenderingContext2D;
+  } | null>(null);
   
   const [useFixedScale, setUseFixedScale] = useState(false);
   const [fixedMin, setFixedMin] = useState('-500');
@@ -104,6 +113,38 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
     texture.anisotropy = 16;
     texture.needsUpdate = true;
     return texture;
+  };
+
+  const createImageDataFromFits = (fitsData: FITSData, useFixed: boolean, minVal: number, maxVal: number): ImageData => {
+    const imageData = new ImageData(fitsData.width, fitsData.height);
+    
+    let min, max;
+    if (useFixed) {
+      min = minVal;
+      max = maxVal;
+    } else {
+      min = fitsData.min;
+      max = fitsData.max;
+    }
+    const range = max - min;
+    
+    for (let y = 0; y < fitsData.height; y++) {
+      for (let x = 0; x < fitsData.width; x++) {
+        const value = fitsData.data[y][x];
+        const clampedValue = Math.max(min, Math.min(max, value));
+        const normalized = (clampedValue - min) / range;
+        
+        const [r, g, b] = getColorForValue(normalized);
+        
+        const idx = (y * fitsData.width + x) * 4;
+        imageData.data[idx] = r;
+        imageData.data[idx + 1] = g;
+        imageData.data[idx + 2] = b;
+        imageData.data[idx + 3] = 255;
+      }
+    }
+    
+    return imageData;
   };
 
   const draw2DMap = (canvas: HTMLCanvasElement, fitsData: FITSData) => {
@@ -303,10 +344,42 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
     const animate = () => {
       const animationId = requestAnimationFrame(animate);
       
+      // Handle texture transition
+      if (transitionRef.current?.isTransitioning) {
+        const elapsed = Date.now() - transitionRef.current.startTime;
+        const progress = Math.min(elapsed / transitionRef.current.duration, 1);
+        
+        // Interpolate between old and new image data
+        const oldData = transitionRef.current.oldImageData!;
+        const newData = transitionRef.current.newImageData!;
+        const ctx = transitionRef.current.ctx;
+        const canvas = transitionRef.current.canvas;
+        
+        const interpolatedData = ctx.createImageData(canvas.width, canvas.height);
+        
+        for (let i = 0; i < oldData.data.length; i += 4) {
+          interpolatedData.data[i] = oldData.data[i] + (newData.data[i] - oldData.data[i]) * progress;
+          interpolatedData.data[i + 1] = oldData.data[i + 1] + (newData.data[i + 1] - oldData.data[i + 1]) * progress;
+          interpolatedData.data[i + 2] = oldData.data[i + 2] + (newData.data[i + 2] - oldData.data[i + 2]) * progress;
+          interpolatedData.data[i + 3] = 255;
+        }
+        
+        ctx.putImageData(interpolatedData, 0, 0);
+        
+        const material = sphere.material as THREE.MeshBasicMaterial;
+        if (material.map) {
+          material.map.needsUpdate = true;
+        }
+        
+        if (progress >= 1) {
+          transitionRef.current.isTransitioning = false;
+        }
+      }
+      
       // Only auto-rotate if isRotating is true and user is not dragging
       // Use ref to get the latest value without triggering re-initialization
       if (!isDragging && isRotatingRef.current) {
-        sphere.rotation.y += 0.002;
+        sphere.rotation.y += 0.0005;
       }
       
       renderer.render(scene, camera);
@@ -382,17 +455,62 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
       const currentRotationY = sceneRef.current.sphere.rotation.y;
       const currentRotationZ = sceneRef.current.sphere.rotation.z;
       
-      const newTexture = createMagneticFieldTexture(
+      // Get old and new image data
+      const material = sceneRef.current.sphere.material as THREE.MeshBasicMaterial;
+      const oldCanvas = (material.map as THREE.CanvasTexture)?.image as HTMLCanvasElement;
+      let oldImageData: ImageData | null = null;
+      
+      if (oldCanvas) {
+        const oldCtx = oldCanvas.getContext('2d')!;
+        oldImageData = oldCtx.getImageData(0, 0, oldCanvas.width, oldCanvas.height);
+      }
+      
+      const newImageData = createImageDataFromFits(
         fitsData, 
         useFixedScale, 
         parseFloat(fixedMin), 
         parseFloat(fixedMax)
       );
       
-      const material = sceneRef.current.sphere.material as THREE.MeshBasicMaterial;
+      // Create canvas for transition
+      const canvas = document.createElement('canvas');
+      canvas.width = fitsData.width;
+      canvas.height = fitsData.height;
+      const ctx = canvas.getContext('2d')!;
+      
+      // If no old data (first load), create gray imageData
+      if (!oldImageData) {
+        oldImageData = ctx.createImageData(fitsData.width, fitsData.height);
+        for (let i = 0; i < oldImageData.data.length; i += 4) {
+          oldImageData.data[i] = 128;
+          oldImageData.data[i + 1] = 128;
+          oldImageData.data[i + 2] = 128;
+          oldImageData.data[i + 3] = 255;
+        }
+      }
+      
+      // Put initial old data on canvas
+      ctx.putImageData(oldImageData, 0, 0);
+      
+      const newTexture = new THREE.CanvasTexture(canvas);
+      newTexture.minFilter = THREE.LinearFilter;
+      newTexture.magFilter = THREE.LinearFilter;
+      newTexture.anisotropy = 16;
+      
       const oldTexture = material.map;
       material.map = newTexture;
       material.needsUpdate = true;
+      
+      // Set up transition
+      transitionRef.current = {
+        isTransitioning: true,
+        startTime: Date.now(),
+        duration: 1500, // 1.5 seconds transition
+        oldImageData,
+        newImageData,
+        canvas,
+        ctx
+      };
       
       // Restore rotation
       sceneRef.current.sphere.rotation.x = currentRotationX;
