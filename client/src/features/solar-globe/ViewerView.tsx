@@ -25,12 +25,20 @@ export default function ViewerView({
   const [isRotating, setIsRotating] = useState(true);
   const wasRotatingRef = useRef(true);
 
-  // Pause rotation when navigation starts, resume when it ends
+  const handleNavigate = (direction: 'next' | 'prev') => {
+    // Save rotation state and pause immediately
+    wasRotatingRef.current = isRotating;
+    setIsRotating(false);
+    
+    // Call parent navigation handler
+    if (onNavigate) {
+      onNavigate(direction);
+    }
+  };
+
+  // Resume rotation when navigation completes
   useEffect(() => {
-    if (isNavigating) {
-      wasRotatingRef.current = isRotating;
-      setIsRotating(false);
-    } else if (wasRotatingRef.current) {
+    if (!isNavigating && wasRotatingRef.current) {
       setIsRotating(true);
     }
   }, [isNavigating]);
@@ -54,14 +62,14 @@ export default function ViewerView({
         {showNavigation && (
           <div className="flex gap-2 mb-2">
             <button
-              onClick={() => onNavigate('prev')}
+              onClick={() => handleNavigate('prev')}
               disabled={isNavigating || currentCarringtonNumber <= 2096}
               className="flex-1 text-white text-xs font-light hover:text-gray-300 transition-colors bg-black/50 px-3 py-2 rounded backdrop-blur disabled:opacity-30 disabled:cursor-not-allowed"
             >
               {isNavigating ? '...' : '← Prev CR'}
             </button>
             <button
-              onClick={() => onNavigate('next')}
+              onClick={() => handleNavigate('next')}
               disabled={isNavigating || currentCarringtonNumber >= 2285}
               className="flex-1 text-white text-xs font-light hover:text-gray-300 transition-colors bg-black/50 px-3 py-2 rounded backdrop-blur disabled:opacity-30 disabled:cursor-not-allowed"
             >
