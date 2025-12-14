@@ -31,6 +31,15 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
     ctx: CanvasRenderingContext2D;
   } | null>(null);
   
+  const transition2DRef = useRef<{
+    isTransitioning: boolean;
+    startTime: number;
+    duration: number;
+    oldImageData: ImageData | null;
+    newImageData: ImageData | null;
+    animationId: number;
+  } | null>(null);
+  
   const [useFixedScale, setUseFixedScale] = useState(false);
   const [fixedMin, setFixedMin] = useState('-500');
   const [fixedMax, setFixedMax] = useState('500');
@@ -148,44 +157,34 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
     return imageData;
   };
 
-  const draw2DMap = (canvas: HTMLCanvasElement, fitsData: FITSData) => {
-    const ctx = canvas.getContext('2d');
+  const animate2DTransition = () => {
+    if (!transition2DRef.current?.isTransitioning || !canvas2DRef.current) return;
+    
+    const ctx = canvas2DRef.current.getContext('2d');
     if (!ctx) return;
     
-    const dataWidth = fitsData.width;
-    const dataHeight = fitsData.height;
-    canvas.width = dataWidth;
-    canvas.height = dataHeight;
+    const elapsed = Date.now() - transition2DRef.current.startTime;
+    const progress = Math.min(elapsed / transition2DRef.current.duration, 1);
     
-    const imageData = ctx.createImageData(dataWidth, dataHeight);
+    const oldData = transition2DRef.current.oldImageData!;
+    const newData = transition2DRef.current.newImageData!;
     
-    let minVal, maxVal;
-    if (useFixedScale) {
-      minVal = parseFloat(fixedMin);
-      maxVal = parseFloat(fixedMax);
+    const interpolatedData = ctx.createImageData(canvas2DRef.current.width, canvas2DRef.current.height);
+    
+    for (let i = 0; i < oldData.data.length; i += 4) {
+      interpolatedData.data[i] = oldData.data[i] + (newData.data[i] - oldData.data[i]) * progress;
+      interpolatedData.data[i + 1] = oldData.data[i + 1] + (newData.data[i + 1] - oldData.data[i + 1]) * progress;
+      interpolatedData.data[i + 2] = oldData.data[i + 2] + (newData.data[i + 2] - oldData.data[i + 2]) * progress;
+      interpolatedData.data[i + 3] = 255;
+    }
+    
+    ctx.putImageData(interpolatedData, 0, 0);
+    
+    if (progress < 1) {
+      transition2DRef.current.animationId = requestAnimationFrame(animate2DTransition);
     } else {
-      minVal = fitsData.min;
-      maxVal = fitsData.max;
+      transition2DRef.current.isTransitioning = false;
     }
-    const range = maxVal - minVal;
-    
-    for (let y = 0; y < fitsData.height; y++) {
-      for (let x = 0; x < fitsData.width; x++) {
-        const value = fitsData.data[y][x];
-        const clampedValue = Math.max(minVal, Math.min(maxVal, value));
-        const normalized = (clampedValue - minVal) / range;
-        
-        const [r, g, b] = getColorForValue(normalized);
-        
-        const idx = (y * fitsData.width + x) * 4;
-        imageData.data[idx] = r;
-        imageData.data[idx + 1] = g;
-        imageData.data[idx + 2] = b;
-        imageData.data[idx + 3] = 255;
-      }
-    }
-    
-    ctx.putImageData(imageData, 0, 0);
   };
 
   const initThreeJS = (fitsData: FITSData) => {
@@ -615,7 +614,58 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
   // Draw 2D map whenever color settings change
   useEffect(() => {
     if (fitsData && canvas2DRef.current && show2DMap) {
-      draw2DMap(canvas2DRef.current, fitsData);
+      const ctx = canvas2DRef.current.getContext('2d');
+      if (!ctx) return;
+      
+      // Get old image data if it exists
+      let oldImageData: ImageData | null = null;
+      if (canvas2DRef.current.width > 0 && canvas2DRef.current.height > 0) {
+        try {
+          oldImageData = ctx.getImageData(0, 0, canvas2DRef.current.width, canvas2DRef.current.height);
+        } catch (e) {
+          // If we can't get old data, that's okay
+        }
+      }
+      
+      // Set canvas size
+      canvas2DRef.current.width = fitsData.width;
+      canvas2DRef.current.height = fitsData.height;
+      
+      // Create new image data
+      const newImageData = createImageDataFromFits(
+        fitsData,
+        useFixedScale,
+        parseFloat(fixedMin),
+        parseFloat(fixedMax)
+      );
+      
+      // If no old data or dimensions changed, just draw immediately
+      if (!oldImageData || 
+          oldImageData.width !== newImageData.width || 
+          oldImageData.height !== newImageData.height) {
+        ctx.putImageData(newImageData, 0, 0);
+        return;
+      }
+      
+      // Cancel any existing transition
+      if (transition2DRef.current?.animationId) {
+        cancelAnimationFrame(transition2DRef.current.animationId);
+      }
+      
+      // Put old data on canvas first
+      ctx.putImageData(oldImageData, 0, 0);
+      
+      // Start transition
+      transition2DRef.current = {
+        isTransitioning: true,
+        startTime: Date.now(),
+        duration: 700,
+        oldImageData,
+        newImageData,
+        animationId: 0
+      };
+      
+      animate2DTransition();
     }
   }, [fitsData, show2DMap, useFixedScale, fixedMin, fixedMax]);
 
