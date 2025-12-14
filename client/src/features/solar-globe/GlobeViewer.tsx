@@ -19,6 +19,7 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
   } | null>(null);
   
   const isRotatingRef = useRef(isRotating);
+  const currentFitsDataRef = useRef<FITSData | null>(null);
   
   const [useFixedScale, setUseFixedScale] = useState(false);
   const [fixedMin, setFixedMin] = useState('-500');
@@ -343,26 +344,63 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
     };
   };
 
-  // Initialize Three.js only when fitsData or show2DMap changes
+  // Initialize Three.js only when show2DMap changes or on first load
   useEffect(() => {
-    if (fitsData && !show2DMap) {
+    if (fitsData && !show2DMap && !sceneRef.current) {
+      // Only initialize if scene doesn't exist
       initThreeJS(fitsData);
-    }
-    
-    return () => {
+      currentFitsDataRef.current = fitsData;
+    } else if (!fitsData || show2DMap) {
+      // Clean up if switching away
       if (sceneRef.current) {
         cancelAnimationFrame(sceneRef.current.animationId);
         if (sceneRef.current.renderer.domElement.parentNode === containerRef.current) {
           containerRef.current?.removeChild(sceneRef.current.renderer.domElement);
         }
         sceneRef.current.renderer.dispose();
+        sceneRef.current = null;
+      }
+    }
+    
+    return () => {
+      if (show2DMap && sceneRef.current) {
+        cancelAnimationFrame(sceneRef.current.animationId);
+        if (sceneRef.current.renderer.domElement.parentNode === containerRef.current) {
+          containerRef.current?.removeChild(sceneRef.current.renderer.domElement);
+        }
+        sceneRef.current.renderer.dispose();
+        sceneRef.current = null;
       }
     };
-  }, [fitsData, show2DMap]);
+  }, [show2DMap]);
+
+  // Update texture when fitsData changes (for navigation)
+  useEffect(() => {
+    if (sceneRef.current && fitsData && !show2DMap && currentFitsDataRef.current !== fitsData) {
+      const newTexture = createMagneticFieldTexture(
+        fitsData, 
+        useFixedScale, 
+        parseFloat(fixedMin), 
+        parseFloat(fixedMax)
+      );
+      
+      const material = sceneRef.current.sphere.material as THREE.MeshBasicMaterial;
+      const oldTexture = material.map;
+      material.map = newTexture;
+      material.needsUpdate = true;
+      
+      // Dispose old texture to free memory
+      if (oldTexture) {
+        oldTexture.dispose();
+      }
+      
+      currentFitsDataRef.current = fitsData;
+    }
+  }, [fitsData, show2DMap, useFixedScale, fixedMin, fixedMax]);
 
   // Update texture when scale settings change (without reinitializing the scene)
   useEffect(() => {
-    if (sceneRef.current && fitsData && !show2DMap) {
+    if (sceneRef.current && fitsData && !show2DMap && currentFitsDataRef.current === fitsData) {
       const newTexture = createMagneticFieldTexture(
         fitsData, 
         useFixedScale, 
@@ -380,7 +418,7 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
         oldTexture.dispose();
       }
     }
-  }, [useFixedScale, fixedMin, fixedMax, fitsData, show2DMap]);
+  }, [useFixedScale, fixedMin, fixedMax]);
 
   // Draw 2D map whenever color settings change
   useEffect(() => {
