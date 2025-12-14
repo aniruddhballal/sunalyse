@@ -42,7 +42,7 @@ export default function ViewerView({
       />
 
       <div 
-        className="absolute left-0 right-0 bottom-0 z-20 pointer-events-auto px-4 pb-4 md:left-6 md:right-auto md:bottom-[10vh] md:px-0"
+        className="absolute left-0 right-0 bottom-16 z-20 pointer-events-auto px-4 md:left-6 md:right-auto md:bottom-[10vh] md:px-0"
         onTouchStart={(e) => e.stopPropagation()}
         onTouchMove={(e) => e.stopPropagation()}
       >
