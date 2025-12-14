@@ -377,6 +377,11 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
   // Update texture when fitsData changes (for navigation)
   useEffect(() => {
     if (sceneRef.current && fitsData && !show2DMap && currentFitsDataRef.current !== fitsData) {
+      // Save current rotation
+      const currentRotationX = sceneRef.current.sphere.rotation.x;
+      const currentRotationY = sceneRef.current.sphere.rotation.y;
+      const currentRotationZ = sceneRef.current.sphere.rotation.z;
+      
       const newTexture = createMagneticFieldTexture(
         fitsData, 
         useFixedScale, 
@@ -388,6 +393,11 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
       const oldTexture = material.map;
       material.map = newTexture;
       material.needsUpdate = true;
+      
+      // Restore rotation
+      sceneRef.current.sphere.rotation.x = currentRotationX;
+      sceneRef.current.sphere.rotation.y = currentRotationY;
+      sceneRef.current.sphere.rotation.z = currentRotationZ;
       
       // Dispose old texture to free memory
       if (oldTexture) {

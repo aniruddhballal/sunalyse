@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import GlobeViewer from './GlobeViewer';
 import DetailsPanel from './DetailsPanel';
 import type { FITSData } from './fits/types';
@@ -23,6 +23,17 @@ export default function ViewerView({
   const [showDetails, setShowDetails] = useState(true);
   const [show2DMap, setShow2DMap] = useState(false);
   const [isRotating, setIsRotating] = useState(true);
+  const wasRotatingRef = useRef(true);
+
+  // Pause rotation when navigation starts, resume when it ends
+  useEffect(() => {
+    if (isNavigating) {
+      wasRotatingRef.current = isRotating;
+      setIsRotating(false);
+    } else if (wasRotatingRef.current) {
+      setIsRotating(true);
+    }
+  }, [isNavigating]);
 
   const showNavigation = currentCarringtonNumber !== undefined && onNavigate;
 
