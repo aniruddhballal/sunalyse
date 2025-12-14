@@ -42,53 +42,58 @@ export default function ViewerView({
       />
 
       <div 
-        className="absolute left-6 space-y-2 z-20 pointer-events-auto"
-        style={{ bottom: '10vh' }}
+        className="absolute left-0 right-0 bottom-0 z-20 pointer-events-auto px-4 pb-4 md:left-6 md:right-auto md:bottom-[10vh] md:px-0"
         onTouchStart={(e) => e.stopPropagation()}
         onTouchMove={(e) => e.stopPropagation()}
       >
-        {showNavigation && (
-          <div className="flex gap-2 mb-2">
+        <div className="flex flex-col gap-2 max-w-md mx-auto md:max-w-none md:mx-0">
+          {showNavigation && (
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => handleNavigate('prev')}
+                disabled={isNavigating || currentCarringtonNumber <= 2096}
+                className="text-white text-xs font-light hover:text-gray-300 transition-colors bg-black/70 backdrop-blur px-3 py-2.5 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                {isNavigating ? '...' : '← Prev CR'}
+              </button>
+              <button
+                onClick={() => handleNavigate('next')}
+                disabled={isNavigating || currentCarringtonNumber >= 2285}
+                className="text-white text-xs font-light hover:text-gray-300 transition-colors bg-black/70 backdrop-blur px-3 py-2.5 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                {isNavigating ? '...' : 'Next CR →'}
+              </button>
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-2">
             <button
-              onClick={() => handleNavigate('prev')}
-              disabled={isNavigating || currentCarringtonNumber <= 2096}
-              className="flex-1 text-white text-xs font-light hover:text-gray-300 transition-colors bg-black/50 px-3 py-2 rounded backdrop-blur disabled:opacity-30 disabled:cursor-not-allowed"
+              onClick={() => setShow2DMap(!show2DMap)}
+              className="text-white text-xs font-light hover:text-gray-300 transition-colors bg-black/70 backdrop-blur px-3 py-2.5 rounded"
             >
-              {isNavigating ? '...' : '← Prev CR'}
+              {show2DMap ? '3D Globe' : '2D Map'}
             </button>
             <button
-              onClick={() => handleNavigate('next')}
-              disabled={isNavigating || currentCarringtonNumber >= 2285}
-              className="flex-1 text-white text-xs font-light hover:text-gray-300 transition-colors bg-black/50 px-3 py-2 rounded backdrop-blur disabled:opacity-30 disabled:cursor-not-allowed"
+              onClick={() => setIsRotating(!isRotating)}
+              className="text-white text-xs font-light hover:text-gray-300 transition-colors bg-black/70 backdrop-blur px-3 py-2.5 rounded"
             >
-              {isNavigating ? '...' : 'Next CR →'}
+              {isRotating ? 'Pause' : 'Resume'}
             </button>
           </div>
-        )}
-        <button
-          onClick={() => setShow2DMap(!show2DMap)}
-          className="block w-full text-white text-xs font-light hover:text-gray-300 transition-colors bg-black/50 px-3 py-2 rounded backdrop-blur"
-        >
-          {show2DMap ? 'Show 3D Globe' : 'Show 2D Map'}
-        </button>
-        <button
-          onClick={() => setIsRotating(!isRotating)}
-          className="block w-full text-white text-xs font-light hover:text-gray-300 transition-colors bg-black/50 px-3 py-2 rounded backdrop-blur"
-        >
-          {isRotating ? 'Pause Rotation' : 'Resume Rotation'}
-        </button>
-        <button
-          onClick={() => setShowDetails(!showDetails)}
-          className="block w-full text-white text-xs font-light hover:text-gray-300 transition-colors bg-black/50 px-3 py-2 rounded backdrop-blur"
-        >
-          {showDetails ? 'Hide' : 'Show'} Details
-        </button>
-        <button
-          onClick={onReset}
-          className="block w-full text-white text-xs font-light hover:text-gray-300 transition-colors bg-black/50 px-3 py-2 rounded backdrop-blur"
-        >
-          View Another
-        </button>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setShowDetails(!showDetails)}
+              className="text-white text-xs font-light hover:text-gray-300 transition-colors bg-black/70 backdrop-blur px-3 py-2.5 rounded"
+            >
+              {showDetails ? 'Hide' : 'Show'} Details
+            </button>
+            <button
+              onClick={onReset}
+              className="text-white text-xs font-light hover:text-gray-300 transition-colors bg-black/70 backdrop-blur px-3 py-2.5 rounded"
+            >
+              View Another
+            </button>
+          </div>
+        </div>
       </div>
 
       <div className="absolute bottom-6 right-6 text-gray-500 text-xs font-light z-20 pointer-events-none">
