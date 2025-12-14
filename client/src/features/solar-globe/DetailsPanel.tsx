@@ -1,5 +1,5 @@
 import { X } from 'lucide-react';
-import type { FITSData } from './fitsUtils';
+import type { FITSData } from './fits/types';
 
 // Carrington Rotation 1 started on November 9, 1853
 const CR1_START = new Date('1853-11-09');

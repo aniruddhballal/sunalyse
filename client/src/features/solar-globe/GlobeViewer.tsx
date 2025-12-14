@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from 'react';
-import type { FITSData } from './fitsUtils';
+import type { FITSData } from './fits/types';
 import * as THREE from 'three';
 
 export default function GlobeViewer({ fitsData, show2DMap }: {

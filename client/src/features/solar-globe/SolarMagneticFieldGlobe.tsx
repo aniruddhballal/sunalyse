@@ -1,8 +1,8 @@
 import { useState, useRef } from 'react';
 import GlobeViewer from './GlobeViewer';
 import DetailsPanel from './DetailsPanel';
-import { parseFITS } from './fitsUtils';
-import type { FITSData } from './fitsUtils';
+import { parseFITS } from './fits/fitsUtils';
+import type { FITSData } from './fits/types';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 if (!API_BASE) {

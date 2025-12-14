@@ -1,4 +1,4 @@
-import type { FITSData } from './fitsUtils';
+import type { FITSData } from './fits/types';
 import { Upload } from 'lucide-react';
 
 export default function UploadSection({ isUploading, isProcessing, fitsData, fileName, uploadProgress, onUploadClick }: {
