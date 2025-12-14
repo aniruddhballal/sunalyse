@@ -28,6 +28,15 @@ export default function ViewerView({
 
   return (
     <>
+      {/* Loading Overlay */}
+      {isNavigating && (
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-30 flex items-center justify-center pointer-events-none">
+          <div className="text-white text-sm font-light animate-pulse">
+            Loading CR{currentCarringtonNumber && (fileName.includes('next') ? currentCarringtonNumber + 1 : currentCarringtonNumber - 1)}...
+          </div>
+        </div>
+      )}
+
       <GlobeViewer
         fitsData={fitsData}
         show2DMap={show2DMap}

@@ -18,49 +18,76 @@ export default function SolarMagneticFieldGlobe() {
   const [carringtonNumber, setCarringtonNumber] = useState('');
   const [currentCRNumber, setCurrentCRNumber] = useState<number | undefined>(undefined);
   const [fetchError, setFetchError] = useState('');
+  const [isNavigating, setIsNavigating] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const fetchCarringtonData = async (rotationNum: number) => {
+  const fetchCarringtonData = async (rotationNum: number, isNavigation = false) => {
     if (rotationNum < 2096 || rotationNum > 2285) {
       setFetchError('Carrington rotation number must be between 2096 and 2285');
       return;
     }
 
     setFetchError('');
-    setIsUploading(true);
-    setUploadProgress(0);
-    setFitsData(null);
+    
+    if (isNavigation) {
+      setIsNavigating(true);
+    } else {
+      setIsUploading(true);
+      setUploadProgress(0);
+      setFitsData(null);
+    }
+    
     setFileName(`CR${rotationNum}.fits`);
 
     try {
-      const progressInterval = setInterval(() => {
-        setUploadProgress(prev => Math.min(prev + 15, 90));
-      }, 200);
+      if (!isNavigation) {
+        const progressInterval = setInterval(() => {
+          setUploadProgress(prev => Math.min(prev + 15, 90));
+        }, 200);
 
-      const response = await fetch(
-        `${API_BASE}/api/fits/carrington/${rotationNum}`
-      );
+        const response = await fetch(
+          `${API_BASE}/api/fits/carrington/${rotationNum}`
+        );
 
-      clearInterval(progressInterval);
-      setUploadProgress(100);
+        clearInterval(progressInterval);
+        setUploadProgress(100);
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch CR${rotationNum}: ${response.statusText}`);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch CR${rotationNum}: ${response.statusText}`);
+        }
+
+        const blob = await response.blob();
+        const file = new File([blob], `CR${rotationNum}.fits`, { type: 'application/fits' });
+
+        setIsUploading(false);
+        setIsProcessing(true);
+        
+        const parsed = await parseFITS(file);
+        setFitsData(parsed);
+        setCurrentCRNumber(rotationNum);
+        setIsProcessing(false);
+      } else {
+        // For navigation, fetch and process in background
+        const response = await fetch(
+          `${API_BASE}/api/fits/carrington/${rotationNum}`
+        );
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch CR${rotationNum}: ${response.statusText}`);
+        }
+
+        const blob = await response.blob();
+        const file = new File([blob], `CR${rotationNum}.fits`, { type: 'application/fits' });
+        
+        const parsed = await parseFITS(file);
+        setFitsData(parsed);
+        setCurrentCRNumber(rotationNum);
+        setIsNavigating(false);
       }
-
-      const blob = await response.blob();
-      const file = new File([blob], `CR${rotationNum}.fits`, { type: 'application/fits' });
-
-      setIsUploading(false);
-      setIsProcessing(true);
-      
-      const parsed = await parseFITS(file);
-      setFitsData(parsed);
-      setCurrentCRNumber(rotationNum);
-      setIsProcessing(false);
       
     } catch (error) {
       setIsUploading(false);
+      setIsNavigating(false);
       setFetchError(error instanceof Error ? error.message : 'Failed to fetch FITS file');
       setUploadProgress(0);
     }
@@ -105,7 +132,7 @@ export default function SolarMagneticFieldGlobe() {
       setFetchError('Please enter a valid Carrington rotation number');
       return;
     }
-    await fetchCarringtonData(rotationNum);
+    await fetchCarringtonData(rotationNum, false);
   };
 
   const handleNavigate = async (direction: 'next' | 'prev') => {
@@ -115,7 +142,7 @@ export default function SolarMagneticFieldGlobe() {
       ? currentCRNumber + 1 
       : currentCRNumber - 1;
     
-    await fetchCarringtonData(newCRNumber);
+    await fetchCarringtonData(newCRNumber, true);
   };
 
   const handleButtonClick = () => {
@@ -130,6 +157,7 @@ export default function SolarMagneticFieldGlobe() {
     setCarringtonNumber('');
     setCurrentCRNumber(undefined);
     setFetchError('');
+    setIsNavigating(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -164,7 +192,7 @@ export default function SolarMagneticFieldGlobe() {
           onReset={handleReset}
           currentCarringtonNumber={currentCRNumber}
           onNavigate={handleNavigate}
-          isNavigating={isUploading || isProcessing}
+          isNavigating={isNavigating}
         />
       )}
     </div>
