@@ -1,0 +1,56 @@
+# ===== Environment =====
+client/.env
+server/.env
+server/.env.*
+!server/.env.example
+
+# ===== Node =====
+client/node_modules/
+server/node_modules/
+client/node_modules/.bin
+# ===== Build outputs =====
+client/dist/
+client/dist-ssr/
+server/dist/
+server/build/
+server/tsconfig.tsbuildinfo
+
+# ===== Logs =====
+logs/
+client/logs/
+server/logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-debug.log*
+lerna-debug.log*
+
+# ===== Cache / temp =====
+.cache/
+.tmp/
+
+# ===== Uploads =====
+server/uploads/
+
+# ===== Local configs =====
+*.local
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+
+# ===== IDE =====
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+
+# personal stuff
+pending_tasks.txt
