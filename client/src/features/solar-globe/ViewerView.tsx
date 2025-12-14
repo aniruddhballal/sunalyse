@@ -12,12 +12,14 @@ interface ViewerViewProps {
 export default function ViewerView({ fitsData, fileName, onReset }: ViewerViewProps) {
   const [showDetails, setShowDetails] = useState(true);
   const [show2DMap, setShow2DMap] = useState(false);
+  const [isRotating, setIsRotating] = useState(true);
 
   return (
     <>
       <GlobeViewer
         fitsData={fitsData}
         show2DMap={show2DMap}
+        isRotating={isRotating}
       />
 
       <div 
@@ -31,6 +33,12 @@ export default function ViewerView({ fitsData, fileName, onReset }: ViewerViewPr
           className="block text-white text-xs font-light hover:text-gray-300 transition-colors bg-black/50 px-3 py-2 rounded backdrop-blur"
         >
           {show2DMap ? 'Show 3D Globe' : 'Show 2D Map'}
+        </button>
+        <button
+          onClick={() => setIsRotating(!isRotating)}
+          className="block text-white text-xs font-light hover:text-gray-300 transition-colors bg-black/50 px-3 py-2 rounded backdrop-blur"
+        >
+          {isRotating ? 'Pause Rotation' : 'Resume Rotation'}
         </button>
         <button
           onClick={() => setShowDetails(!showDetails)}

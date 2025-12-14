@@ -2,9 +2,10 @@ import { useRef, useEffect, useState } from 'react';
 import type { FITSData } from './fits/types';
 import * as THREE from 'three';
 
-export default function GlobeViewer({ fitsData, show2DMap }: {
+export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
   fitsData: FITSData;
   show2DMap: boolean;
+  isRotating: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvas2DRef = useRef<HTMLCanvasElement>(null);
@@ -14,11 +15,19 @@ export default function GlobeViewer({ fitsData, show2DMap }: {
     renderer: THREE.WebGLRenderer;
     sphere: THREE.Mesh;
     animationId: number;
+    isDragging: boolean;
   } | null>(null);
+  
+  const isRotatingRef = useRef(isRotating);
   
   const [useFixedScale, setUseFixedScale] = useState(false);
   const [fixedMin, setFixedMin] = useState('-500');
   const [fixedMax, setFixedMax] = useState('500');
+
+  // Keep isRotatingRef in sync with isRotating prop
+  useEffect(() => {
+    isRotatingRef.current = isRotating;
+  }, [isRotating]);
 
   const getColorForValue = (normalized: number): [number, number, number] => {
     let r, g, b;
@@ -52,7 +61,7 @@ export default function GlobeViewer({ fitsData, show2DMap }: {
     return [r, g, b];
   };
 
-  const createMagneticFieldTexture = (fitsData: FITSData): THREE.Texture => {
+  const createMagneticFieldTexture = (fitsData: FITSData, useFixed: boolean, minVal: number, maxVal: number): THREE.Texture => {
     const canvas = document.createElement('canvas');
     canvas.width = fitsData.width;
     canvas.height = fitsData.height;
@@ -60,21 +69,21 @@ export default function GlobeViewer({ fitsData, show2DMap }: {
     
     const imageData = ctx.createImageData(fitsData.width, fitsData.height);
     
-    let minVal, maxVal;
-    if (useFixedScale) {
-      minVal = parseFloat(fixedMin);
-      maxVal = parseFloat(fixedMax);
+    let min, max;
+    if (useFixed) {
+      min = minVal;
+      max = maxVal;
     } else {
-      minVal = fitsData.min;
-      maxVal = fitsData.max;
+      min = fitsData.min;
+      max = fitsData.max;
     }
-    const range = maxVal - minVal;
+    const range = max - min;
     
     for (let y = 0; y < fitsData.height; y++) {
       for (let x = 0; x < fitsData.width; x++) {
         const value = fitsData.data[y][x];
-        const clampedValue = Math.max(minVal, Math.min(maxVal, value));
-        const normalized = (clampedValue - minVal) / range;
+        const clampedValue = Math.max(min, Math.min(max, value));
+        const normalized = (clampedValue - min) / range;
         
         const [r, g, b] = getColorForValue(normalized);
         
@@ -162,7 +171,7 @@ export default function GlobeViewer({ fitsData, show2DMap }: {
     containerRef.current.appendChild(renderer.domElement);
     
     const geometry = new THREE.SphereGeometry(1, 256, 256);
-    const texture = createMagneticFieldTexture(fitsData);
+    const texture = createMagneticFieldTexture(fitsData, useFixedScale, parseFloat(fixedMin), parseFloat(fixedMax));
     const material = new THREE.MeshBasicMaterial({ 
       map: texture,
       side: THREE.DoubleSide
@@ -205,6 +214,9 @@ export default function GlobeViewer({ fitsData, show2DMap }: {
     const onMouseDown = (e: MouseEvent) => {
       if (isClickOnSphere(e.clientX, e.clientY)) {
         isDragging = true;
+        if (sceneRef.current) {
+          sceneRef.current.isDragging = true;
+        }
         previousMousePosition = { x: e.clientX, y: e.clientY };
         renderer.domElement.style.cursor = 'grabbing';
       }
@@ -227,6 +239,9 @@ export default function GlobeViewer({ fitsData, show2DMap }: {
     
     const onMouseUp = () => {
       isDragging = false;
+      if (sceneRef.current) {
+        sceneRef.current.isDragging = false;
+      }
       renderer.domElement.style.cursor = 'default';
     };
     
@@ -245,6 +260,9 @@ export default function GlobeViewer({ fitsData, show2DMap }: {
         if (isClickOnSphere(e.touches[0].clientX, e.touches[0].clientY)) {
           touchStartedOnCanvas = true;
           isDragging = true;
+          if (sceneRef.current) {
+            sceneRef.current.isDragging = true;
+          }
           previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
         }
       }
@@ -266,6 +284,9 @@ export default function GlobeViewer({ fitsData, show2DMap }: {
     
     const onTouchEnd = () => {
       isDragging = false;
+      if (sceneRef.current) {
+        sceneRef.current.isDragging = false;
+      }
       touchStartedOnCanvas = false;
     };
     
@@ -281,7 +302,9 @@ export default function GlobeViewer({ fitsData, show2DMap }: {
     const animate = () => {
       const animationId = requestAnimationFrame(animate);
       
-      if (!isDragging) {
+      // Only auto-rotate if isRotating is true and user is not dragging
+      // Use ref to get the latest value without triggering re-initialization
+      if (!isDragging && isRotatingRef.current) {
         sphere.rotation.y += 0.002;
       }
       
@@ -294,7 +317,7 @@ export default function GlobeViewer({ fitsData, show2DMap }: {
     
     animate();
     
-    sceneRef.current = { scene, camera, renderer, sphere, animationId: 0 };
+    sceneRef.current = { scene, camera, renderer, sphere, animationId: 0, isDragging: false };
     
     const handleResize = () => {
       if (!containerRef.current) return;
@@ -320,7 +343,7 @@ export default function GlobeViewer({ fitsData, show2DMap }: {
     };
   };
 
-  // Initialize Three.js when not showing 2D map
+  // Initialize Three.js only when fitsData or show2DMap changes
   useEffect(() => {
     if (fitsData && !show2DMap) {
       initThreeJS(fitsData);
@@ -335,7 +358,29 @@ export default function GlobeViewer({ fitsData, show2DMap }: {
         sceneRef.current.renderer.dispose();
       }
     };
-  }, [fitsData, show2DMap, useFixedScale, fixedMin, fixedMax]);
+  }, [fitsData, show2DMap]);
+
+  // Update texture when scale settings change (without reinitializing the scene)
+  useEffect(() => {
+    if (sceneRef.current && fitsData && !show2DMap) {
+      const newTexture = createMagneticFieldTexture(
+        fitsData, 
+        useFixedScale, 
+        parseFloat(fixedMin), 
+        parseFloat(fixedMax)
+      );
+      
+      const material = sceneRef.current.sphere.material as THREE.MeshBasicMaterial;
+      const oldTexture = material.map;
+      material.map = newTexture;
+      material.needsUpdate = true;
+      
+      // Dispose old texture to free memory
+      if (oldTexture) {
+        oldTexture.dispose();
+      }
+    }
+  }, [useFixedScale, fixedMin, fixedMax, fitsData, show2DMap]);
 
   // Draw 2D map whenever color settings change
   useEffect(() => {
