@@ -16,6 +16,7 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
     sphere: THREE.Mesh;
     animationId: number;
     isDragging: boolean;
+    pausedForTransition: boolean;
   } | null>(null);
   
   const isRotatingRef = useRef(isRotating);
@@ -373,12 +374,22 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
         
         if (progress >= 1) {
           transitionRef.current.isTransitioning = false;
+          // Resume rotation after transition completes
+          if (sceneRef.current) {
+            sceneRef.current.pausedForTransition = false;
+          }
         }
       }
       
-      // Only auto-rotate if isRotating is true and user is not dragging
-      // Use ref to get the latest value without triggering re-initialization
-      if (!isDragging && isRotatingRef.current) {
+      // Only auto-rotate if:
+      // 1. isRotating is true
+      // 2. user is not dragging
+      // 3. not paused for transition
+      const shouldRotate = !isDragging && 
+                          isRotatingRef.current && 
+                          !(sceneRef.current?.pausedForTransition);
+      
+      if (shouldRotate) {
         sphere.rotation.y += 0.0005;
       }
       
@@ -391,7 +402,15 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
     
     animate();
     
-    sceneRef.current = { scene, camera, renderer, sphere, animationId: 0, isDragging: false };
+    sceneRef.current = { 
+      scene, 
+      camera, 
+      renderer, 
+      sphere, 
+      animationId: 0, 
+      isDragging: false,
+      pausedForTransition: false
+    };
     
     const handleResize = () => {
       if (!containerRef.current) return;
@@ -450,12 +469,9 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
   // Update texture when fitsData changes (for navigation)
   useEffect(() => {
     if (sceneRef.current && fitsData && !show2DMap && currentFitsDataRef.current !== fitsData) {
-      // Save current rotation
-      const currentRotationX = sceneRef.current.sphere.rotation.x;
-      const currentRotationY = sceneRef.current.sphere.rotation.y;
-      const currentRotationZ = sceneRef.current.sphere.rotation.z;
+      // DON'T pause rotation yet - let it continue while we prepare data
       
-      // Get old and new image data
+      // Get old and new image data (this takes time, but globe keeps rotating)
       const material = sceneRef.current.sphere.material as THREE.MeshBasicMaterial;
       const oldCanvas = (material.map as THREE.CanvasTexture)?.image as HTMLCanvasElement;
       let oldImageData: ImageData | null = null;
@@ -465,6 +481,7 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
         oldImageData = oldCtx.getImageData(0, 0, oldCanvas.width, oldCanvas.height);
       }
       
+      // Prepare new image data (computation happens here while globe rotates)
       const newImageData = createImageDataFromFits(
         fitsData, 
         useFixedScale, 
@@ -501,21 +518,19 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
       material.map = newTexture;
       material.needsUpdate = true;
       
+      // NOW pause rotation right before transition starts
+      sceneRef.current.pausedForTransition = true;
+      
       // Set up transition
       transitionRef.current = {
         isTransitioning: true,
         startTime: Date.now(),
-        duration: 1500, // 1.5 seconds transition
+        duration: 800, // 0.8 seconds transition (faster)
         oldImageData,
         newImageData,
         canvas,
         ctx
       };
-      
-      // Restore rotation
-      sceneRef.current.sphere.rotation.x = currentRotationX;
-      sceneRef.current.sphere.rotation.y = currentRotationY;
-      sceneRef.current.sphere.rotation.z = currentRotationZ;
       
       // Dispose old texture to free memory
       if (oldTexture) {
@@ -529,17 +544,66 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
   // Update texture when scale settings change (without reinitializing the scene)
   useEffect(() => {
     if (sceneRef.current && fitsData && !show2DMap && currentFitsDataRef.current === fitsData) {
-      const newTexture = createMagneticFieldTexture(
+      // Get old image data
+      const material = sceneRef.current.sphere.material as THREE.MeshBasicMaterial;
+      const oldCanvas = (material.map as THREE.CanvasTexture)?.image as HTMLCanvasElement;
+      let oldImageData: ImageData | null = null;
+      
+      if (oldCanvas) {
+        const oldCtx = oldCanvas.getContext('2d')!;
+        oldImageData = oldCtx.getImageData(0, 0, oldCanvas.width, oldCanvas.height);
+      }
+      
+      // Create new image data with new scale settings
+      const newImageData = createImageDataFromFits(
         fitsData, 
         useFixedScale, 
         parseFloat(fixedMin), 
         parseFloat(fixedMax)
       );
       
-      const material = sceneRef.current.sphere.material as THREE.MeshBasicMaterial;
+      // Create canvas for transition
+      const canvas = document.createElement('canvas');
+      canvas.width = fitsData.width;
+      canvas.height = fitsData.height;
+      const ctx = canvas.getContext('2d')!;
+      
+      // If no old data, create it from current state
+      if (!oldImageData) {
+        oldImageData = ctx.createImageData(fitsData.width, fitsData.height);
+        for (let i = 0; i < oldImageData.data.length; i += 4) {
+          oldImageData.data[i] = 128;
+          oldImageData.data[i + 1] = 128;
+          oldImageData.data[i + 2] = 128;
+          oldImageData.data[i + 3] = 255;
+        }
+      }
+      
+      // Put initial old data on canvas
+      ctx.putImageData(oldImageData, 0, 0);
+      
+      const newTexture = new THREE.CanvasTexture(canvas);
+      newTexture.minFilter = THREE.LinearFilter;
+      newTexture.magFilter = THREE.LinearFilter;
+      newTexture.anisotropy = 16;
+      
       const oldTexture = material.map;
       material.map = newTexture;
       material.needsUpdate = true;
+      
+      // Pause rotation during scale transition
+      sceneRef.current.pausedForTransition = true;
+      
+      // Set up transition
+      transitionRef.current = {
+        isTransitioning: true,
+        startTime: Date.now(),
+        duration: 700, // Same 700ms transition for scale changes
+        oldImageData,
+        newImageData,
+        canvas,
+        ctx
+      };
       
       // Dispose old texture to free memory
       if (oldTexture) {

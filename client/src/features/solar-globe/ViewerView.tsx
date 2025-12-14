@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import GlobeViewer from './GlobeViewer';
 import DetailsPanel from './DetailsPanel';
 import type { FITSData } from './fits/types';
@@ -23,25 +23,13 @@ export default function ViewerView({
   const [showDetails, setShowDetails] = useState(true);
   const [show2DMap, setShow2DMap] = useState(false);
   const [isRotating, setIsRotating] = useState(true);
-  const wasRotatingRef = useRef(true);
 
   const handleNavigate = (direction: 'next' | 'prev') => {
-    // Save rotation state and pause immediately
-    wasRotatingRef.current = isRotating;
-    setIsRotating(false);
-    
-    // Call parent navigation handler
+    // Don't pause rotation - let GlobeViewer handle it during transition
     if (onNavigate) {
       onNavigate(direction);
     }
   };
-
-  // Resume rotation when navigation completes
-  useEffect(() => {
-    if (!isNavigating && wasRotatingRef.current) {
-      setIsRotating(true);
-    }
-  }, [isNavigating]);
 
   const showNavigation = currentCarringtonNumber !== undefined && onNavigate;
 
