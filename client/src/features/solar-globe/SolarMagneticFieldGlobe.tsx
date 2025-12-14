@@ -16,45 +16,13 @@ export default function SolarMagneticFieldGlobe() {
   const [fitsData, setFitsData] = useState<FITSData | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [carringtonNumber, setCarringtonNumber] = useState('');
+  const [currentCRNumber, setCurrentCRNumber] = useState<number | undefined>(undefined);
   const [fetchError, setFetchError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
-    setFetchError('');
-    setFileName(file.name);
-    setIsUploading(true);
-    setUploadProgress(0);
-    setFitsData(null);
-
-    const uploadInterval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(uploadInterval);
-          return 100;
-        }
-        return prev + 10;
-      });
-    }, 100);
-
-    setTimeout(async () => {
-      setIsUploading(false);
-      
-      if (file.name.toLowerCase().endsWith('.fits')) {
-        setIsProcessing(true);
-        const parsed = await parseFITS(file);
-        setFitsData(parsed);
-        setIsProcessing(false);
-      }
-    }, 1200);
-  };
-
-  const handleCarringtonFetch = async () => {
-    const rotationNum = parseInt(carringtonNumber);
-    if (!rotationNum || rotationNum < 1 || rotationNum > 3000) {
-      setFetchError('Please enter a valid Carrington rotation number (1-3000)');
+  const fetchCarringtonData = async (rotationNum: number) => {
+    if (rotationNum < 2096 || rotationNum > 2285) {
+      setFetchError('Carrington rotation number must be between 2096 and 2285');
       return;
     }
 
@@ -88,6 +56,7 @@ export default function SolarMagneticFieldGlobe() {
       
       const parsed = await parseFITS(file);
       setFitsData(parsed);
+      setCurrentCRNumber(rotationNum);
       setIsProcessing(false);
       
     } catch (error) {
@@ -95,6 +64,58 @@ export default function SolarMagneticFieldGlobe() {
       setFetchError(error instanceof Error ? error.message : 'Failed to fetch FITS file');
       setUploadProgress(0);
     }
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setFetchError('');
+    setFileName(file.name);
+    setIsUploading(true);
+    setUploadProgress(0);
+    setFitsData(null);
+    setCurrentCRNumber(undefined);
+
+    const uploadInterval = setInterval(() => {
+      setUploadProgress(prev => {
+        if (prev >= 100) {
+          clearInterval(uploadInterval);
+          return 100;
+        }
+        return prev + 10;
+      });
+    }, 100);
+
+    setTimeout(async () => {
+      setIsUploading(false);
+      
+      if (file.name.toLowerCase().endsWith('.fits')) {
+        setIsProcessing(true);
+        const parsed = await parseFITS(file);
+        setFitsData(parsed);
+        setIsProcessing(false);
+      }
+    }, 1200);
+  };
+
+  const handleCarringtonFetch = async () => {
+    const rotationNum = parseInt(carringtonNumber);
+    if (!rotationNum) {
+      setFetchError('Please enter a valid Carrington rotation number');
+      return;
+    }
+    await fetchCarringtonData(rotationNum);
+  };
+
+  const handleNavigate = async (direction: 'next' | 'prev') => {
+    if (currentCRNumber === undefined) return;
+    
+    const newCRNumber = direction === 'next' 
+      ? currentCRNumber + 1 
+      : currentCRNumber - 1;
+    
+    await fetchCarringtonData(newCRNumber);
   };
 
   const handleButtonClick = () => {
@@ -107,6 +128,7 @@ export default function SolarMagneticFieldGlobe() {
     setFileName('');
     setFitsData(null);
     setCarringtonNumber('');
+    setCurrentCRNumber(undefined);
     setFetchError('');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -140,6 +162,9 @@ export default function SolarMagneticFieldGlobe() {
           fitsData={fitsData}
           fileName={fileName}
           onReset={handleReset}
+          currentCarringtonNumber={currentCRNumber}
+          onNavigate={handleNavigate}
+          isNavigating={isUploading || isProcessing}
         />
       )}
     </div>
