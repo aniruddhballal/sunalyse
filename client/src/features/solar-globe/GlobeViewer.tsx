@@ -49,6 +49,11 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
     isRotatingRef.current = isRotating;
   }, [isRotating]);
 
+  // Easing function for smooth transitions
+  const easeInOutCubic = (t: number): number => {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  };
+
   const getColorForValue = (normalized: number): [number, number, number] => {
     let r, g, b;
     
@@ -164,7 +169,8 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
     if (!ctx) return;
     
     const elapsed = Date.now() - transition2DRef.current.startTime;
-    const progress = Math.min(elapsed / transition2DRef.current.duration, 1);
+    const rawProgress = Math.min(elapsed / transition2DRef.current.duration, 1);
+    const progress = easeInOutCubic(rawProgress); // Apply easing
     
     const oldData = transition2DRef.current.oldImageData!;
     const newData = transition2DRef.current.newImageData!;
@@ -180,7 +186,7 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
     
     ctx.putImageData(interpolatedData, 0, 0);
     
-    if (progress < 1) {
+    if (rawProgress < 1) {
       transition2DRef.current.animationId = requestAnimationFrame(animate2DTransition);
     } else {
       transition2DRef.current.isTransitioning = false;
@@ -347,7 +353,8 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
       // Handle texture transition
       if (transitionRef.current?.isTransitioning) {
         const elapsed = Date.now() - transitionRef.current.startTime;
-        const progress = Math.min(elapsed / transitionRef.current.duration, 1);
+        const rawProgress = Math.min(elapsed / transitionRef.current.duration, 1);
+        const progress = easeInOutCubic(rawProgress); // Apply easing
         
         // Interpolate between old and new image data
         const oldData = transitionRef.current.oldImageData!;
@@ -371,7 +378,7 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
           material.map.needsUpdate = true;
         }
         
-        if (progress >= 1) {
+        if (rawProgress >= 1) {
           transitionRef.current.isTransitioning = false;
           // Resume rotation after transition completes
           if (sceneRef.current) {
