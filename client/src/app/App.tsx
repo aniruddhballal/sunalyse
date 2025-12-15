@@ -1,8 +1,7 @@
-// import SolarMagneticFieldGlobe from "../features/solar-globe/SolarMagneticFieldGlobe";
-import ColorShiftingGlobe from "./ColorShiftingGlobe";
+import SolarMagneticFieldGlobe from "../features/solar-globe/SolarMagneticFieldGlobe";
 
 function App() {
-  return <ColorShiftingGlobe />;
+  return <SolarMagneticFieldGlobe />;
 }
 
 export default App;
