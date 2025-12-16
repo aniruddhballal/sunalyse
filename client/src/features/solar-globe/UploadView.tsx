@@ -1,4 +1,4 @@
-interface UploadViewProps {
+interface __UploadViewProps__ {
   isUploading: boolean;
   isProcessing: boolean;
   fileName: string;
@@ -20,7 +20,14 @@ export default function UploadView({
   onCarringtonChange,
   onCarringtonFetch,
   fetchError
-}: UploadViewProps) {
+}: __UploadViewProps__) {
+  const handleCarringtonFetch = () => {
+    console.log('🔍 [DEBUG] Fetch button clicked at:', new Date().toISOString());
+    console.log('🔍 [DEBUG] Carrington number:', carringtonNumber);
+    console.time('⏱️ Total Fetch Duration (UploadView)');
+    onCarringtonFetch();
+  };
+
   return (
     <div className="absolute inset-0 flex items-center justify-center bg-black">
       <div className="text-center space-y-8 max-w-md px-6">
@@ -65,13 +72,13 @@ export default function UploadView({
                 type="number"
                 value={carringtonNumber}
                 onChange={(e) => onCarringtonChange(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && onCarringtonFetch()}
+                onKeyDown={(e) => e.key === 'Enter' && handleCarringtonFetch()}
                 placeholder="e.g., 2150"
                 disabled={isUploading || isProcessing}
                 className="flex-1 px-4 py-3 bg-white/10 text-white font-light rounded-lg border border-white/20 focus:outline-none focus:border-white/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed placeholder-gray-500"
               />
               <button
-                onClick={onCarringtonFetch}
+                onClick={handleCarringtonFetch}
                 disabled={isUploading || isProcessing || !carringtonNumber}
                 className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-light rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
