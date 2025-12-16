@@ -25,10 +25,6 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
     isTransitioning: boolean;
     startTime: number;
     duration: number;
-    oldImageData: ImageData | null;
-    newImageData: ImageData | null;
-    canvas: HTMLCanvasElement;
-    ctx: CanvasRenderingContext2D;
   } | null>(null);
   
   const transition2DRef = useRef<{
@@ -44,12 +40,10 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
   const [fixedMin, setFixedMin] = useState('-500');
   const [fixedMax, setFixedMax] = useState('500');
 
-  // Keep isRotatingRef in sync with isRotating prop
   useEffect(() => {
     isRotatingRef.current = isRotating;
   }, [isRotating]);
 
-  // Easing function for smooth transitions
   const easeInOutCubic = (t: number): number => {
     return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
   };
@@ -86,13 +80,9 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
     return [r, g, b];
   };
 
-  const createMagneticFieldTexture = (fitsData: FITSData, useFixed: boolean, minVal: number, maxVal: number): THREE.Texture => {
-    const canvas = document.createElement('canvas');
-    canvas.width = fitsData.width;
-    canvas.height = fitsData.height;
-    const ctx = canvas.getContext('2d')!;
-    
-    const imageData = ctx.createImageData(fitsData.width, fitsData.height);
+  // Create a data texture from FITS (single channel, raw normalized values)
+  const createDataTexture = (fitsData: FITSData, useFixed: boolean, minVal: number, maxVal: number): THREE.DataTexture => {
+    const dataArray = new Float32Array(fitsData.width * fitsData.height);
     
     let min, max;
     if (useFixed) {
@@ -109,25 +99,166 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
         const value = fitsData.data[y][x];
         const clampedValue = Math.max(min, Math.min(max, value));
         const normalized = (clampedValue - min) / range;
-        
-        const [r, g, b] = getColorForValue(normalized);
-        
-        const idx = (y * fitsData.width + x) * 4;
-        imageData.data[idx] = r;
-        imageData.data[idx + 1] = g;
-        imageData.data[idx + 2] = b;
-        imageData.data[idx + 3] = 255;
+        dataArray[y * fitsData.width + x] = normalized;
       }
     }
     
-    ctx.putImageData(imageData, 0, 0);
-    
-    const texture = new THREE.CanvasTexture(canvas);
+    const texture = new THREE.DataTexture(
+      dataArray,
+      fitsData.width,
+      fitsData.height,
+      THREE.RedFormat,
+      THREE.FloatType
+    );
     texture.minFilter = THREE.LinearFilter;
     texture.magFilter = THREE.LinearFilter;
-    texture.anisotropy = 16;
     texture.needsUpdate = true;
     return texture;
+  };
+
+  // Create shader material that colors data on-the-fly
+  const createShaderMaterial = (dataTexture: THREE.DataTexture): THREE.ShaderMaterial => {
+    return new THREE.ShaderMaterial({
+      uniforms: {
+        dataMap: { value: dataTexture }
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        varying vec3 vNormal;
+        
+        void main() {
+          vUv = uv;
+          vNormal = normalize(normalMatrix * normal);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D dataMap;
+        varying vec2 vUv;
+        varying vec3 vNormal;
+        
+        vec3 getColorForValue(float normalized) {
+          float r, g, b;
+          
+          if (normalized < 0.4) {
+            float t = normalized / 0.4;
+            r = (100.0 + t * 155.0) / 255.0;
+            g = (t * 200.0) / 255.0;
+            b = 0.0;
+          } else if (normalized < 0.48) {
+            float t = (normalized - 0.4) / 0.08;
+            r = (255.0 - t * 55.0) / 255.0;
+            g = (200.0 - t * 50.0) / 255.0;
+            b = (t * 150.0) / 255.0;
+          } else if (normalized < 0.52) {
+            r = 150.0 / 255.0;
+            g = 150.0 / 255.0;
+            b = 150.0 / 255.0;
+          } else if (normalized < 0.6) {
+            float t = (normalized - 0.52) / 0.08;
+            r = (150.0 - t * 150.0) / 255.0;
+            g = (150.0 + t * 105.0) / 255.0;
+            b = (150.0 - t * 50.0) / 255.0;
+          } else {
+            float t = (normalized - 0.6) / 0.4;
+            r = 0.0;
+            g = (255.0 - t * 255.0) / 255.0;
+            b = (100.0 + t * 155.0) / 255.0;
+          }
+          
+          return vec3(r, g, b);
+        }
+        
+        void main() {
+          float normalized = texture2D(dataMap, vUv).r;
+          vec3 color = getColorForValue(normalized);
+          
+          // Add lighting
+          vec3 lightDir = normalize(vec3(1.0, 1.0, 1.0));
+          float diff = max(dot(vNormal, lightDir), 0.0) * 0.3 + 0.7;
+          
+          gl_FragColor = vec4(color * diff, 1.0);
+        }
+      `,
+      side: THREE.DoubleSide
+    });
+  };
+
+  // Create transition shader that interpolates DATA, then colors
+  const createTransitionShaderMaterial = (oldDataTexture: THREE.DataTexture, newDataTexture: THREE.DataTexture): THREE.ShaderMaterial => {
+    return new THREE.ShaderMaterial({
+      uniforms: {
+        oldDataMap: { value: oldDataTexture },
+        newDataMap: { value: newDataTexture },
+        mixFactor: { value: 0.0 }
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        varying vec3 vNormal;
+        
+        void main() {
+          vUv = uv;
+          vNormal = normalize(normalMatrix * normal);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D oldDataMap;
+        uniform sampler2D newDataMap;
+        uniform float mixFactor;
+        varying vec2 vUv;
+        varying vec3 vNormal;
+        
+        vec3 getColorForValue(float normalized) {
+          float r, g, b;
+          
+          if (normalized < 0.4) {
+            float t = normalized / 0.4;
+            r = (100.0 + t * 155.0) / 255.0;
+            g = (t * 200.0) / 255.0;
+            b = 0.0;
+          } else if (normalized < 0.48) {
+            float t = (normalized - 0.4) / 0.08;
+            r = (255.0 - t * 55.0) / 255.0;
+            g = (200.0 - t * 50.0) / 255.0;
+            b = (t * 150.0) / 255.0;
+          } else if (normalized < 0.52) {
+            r = 150.0 / 255.0;
+            g = 150.0 / 255.0;
+            b = 150.0 / 255.0;
+          } else if (normalized < 0.6) {
+            float t = (normalized - 0.52) / 0.08;
+            r = (150.0 - t * 150.0) / 255.0;
+            g = (150.0 + t * 105.0) / 255.0;
+            b = (150.0 - t * 50.0) / 255.0;
+          } else {
+            float t = (normalized - 0.6) / 0.4;
+            r = 0.0;
+            g = (255.0 - t * 255.0) / 255.0;
+            b = (100.0 + t * 155.0) / 255.0;
+          }
+          
+          return vec3(r, g, b);
+        }
+        
+        void main() {
+          // Interpolate the DATA values first
+          float oldValue = texture2D(oldDataMap, vUv).r;
+          float newValue = texture2D(newDataMap, vUv).r;
+          float interpolatedValue = mix(oldValue, newValue, mixFactor);
+          
+          // THEN calculate the color from interpolated data
+          vec3 color = getColorForValue(interpolatedValue);
+          
+          // Add lighting
+          vec3 lightDir = normalize(vec3(1.0, 1.0, 1.0));
+          float diff = max(dot(vNormal, lightDir), 0.0) * 0.3 + 0.7;
+          
+          gl_FragColor = vec4(color * diff, 1.0);
+        }
+      `,
+      side: THREE.DoubleSide
+    });
   };
 
   const createImageDataFromFits = (fitsData: FITSData, useFixed: boolean, minVal: number, maxVal: number): ImageData => {
@@ -170,7 +301,7 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
     
     const elapsed = Date.now() - transition2DRef.current.startTime;
     const rawProgress = Math.min(elapsed / transition2DRef.current.duration, 1);
-    const progress = easeInOutCubic(rawProgress); // Apply easing
+    const progress = easeInOutCubic(rawProgress);
     
     const oldData = transition2DRef.current.oldImageData!;
     const newData = transition2DRef.current.newImageData!;
@@ -219,11 +350,8 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
     containerRef.current.appendChild(renderer.domElement);
     
     const geometry = new THREE.SphereGeometry(1, 256, 256);
-    const texture = createMagneticFieldTexture(fitsData, useFixedScale, parseFloat(fixedMin), parseFloat(fixedMax));
-    const material = new THREE.MeshBasicMaterial({ 
-      map: texture,
-      side: THREE.DoubleSide
-    });
+    const dataTexture = createDataTexture(fitsData, useFixedScale, parseFloat(fixedMin), parseFloat(fixedMax));
+    const material = createShaderMaterial(dataTexture);
     const sphere = new THREE.Mesh(geometry, material);
     scene.add(sphere);
     
@@ -237,7 +365,6 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
     let isDragging = false;
     let previousMousePosition = { x: 0, y: 0 };
     
-    // Raycaster to detect if click is on the sphere
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
     
@@ -293,11 +420,9 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
       renderer.domElement.style.cursor = 'default';
     };
     
-    // Touch event handlers for mobile
     let touchStartedOnCanvas = false;
     
     const onTouchStart = (e: TouchEvent) => {
-      // Check if touch started on an interactive element
       const target = e.target as HTMLElement;
       if (target !== renderer.domElement) {
         touchStartedOnCanvas = false;
@@ -319,7 +444,6 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
     const onTouchMove = (e: TouchEvent) => {
       if (!touchStartedOnCanvas || !isDragging || e.touches.length !== 1) return;
       
-      // Only prevent default if we're actually rotating
       e.preventDefault();
       const deltaX = e.touches[0].clientX - previousMousePosition.x;
       const deltaY = e.touches[0].clientY - previousMousePosition.y;
@@ -350,47 +474,36 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
     const animate = () => {
       const animationId = requestAnimationFrame(animate);
       
-      // Handle texture transition
-      if (transitionRef.current?.isTransitioning) {
+      // Handle smooth shader-based transition
+      if (transitionRef.current?.isTransitioning && sphere.material instanceof THREE.ShaderMaterial) {
         const elapsed = Date.now() - transitionRef.current.startTime;
         const rawProgress = Math.min(elapsed / transitionRef.current.duration, 1);
-        const progress = easeInOutCubic(rawProgress); // Apply easing
+        const progress = easeInOutCubic(rawProgress);
         
-        // Interpolate between old and new image data
-        const oldData = transitionRef.current.oldImageData!;
-        const newData = transitionRef.current.newImageData!;
-        const ctx = transitionRef.current.ctx;
-        const canvas = transitionRef.current.canvas;
-        
-        const interpolatedData = ctx.createImageData(canvas.width, canvas.height);
-        
-        for (let i = 0; i < oldData.data.length; i += 4) {
-          interpolatedData.data[i] = oldData.data[i] + (newData.data[i] - oldData.data[i]) * progress;
-          interpolatedData.data[i + 1] = oldData.data[i + 1] + (newData.data[i + 1] - oldData.data[i + 1]) * progress;
-          interpolatedData.data[i + 2] = oldData.data[i + 2] + (newData.data[i + 2] - oldData.data[i + 2]) * progress;
-          interpolatedData.data[i + 3] = 255;
-        }
-        
-        ctx.putImageData(interpolatedData, 0, 0);
-        
-        const material = sphere.material as THREE.MeshBasicMaterial;
-        if (material.map) {
-          material.map.needsUpdate = true;
-        }
+        sphere.material.uniforms.mixFactor.value = progress;
         
         if (rawProgress >= 1) {
+          // Transition complete - switch to single data map shader
+          const newDataTexture = sphere.material.uniforms.newDataMap.value;
+          const oldDataTexture = sphere.material.uniforms.oldDataMap.value;
+          
+          const newMaterial = createShaderMaterial(newDataTexture);
+          
+          sphere.material.dispose();
+          sphere.material = newMaterial;
+          
+          // Clean up old texture
+          if (oldDataTexture) {
+            oldDataTexture.dispose();
+          }
+          
           transitionRef.current.isTransitioning = false;
-          // Resume rotation after transition completes
           if (sceneRef.current) {
             sceneRef.current.pausedForTransition = false;
           }
         }
       }
       
-      // Only auto-rotate if:
-      // 1. isRotating is true
-      // 2. user is not dragging
-      // 3. not paused for transition
       const shouldRotate = !isDragging && 
                           isRotatingRef.current && 
                           !(sceneRef.current?.pausedForTransition);
@@ -442,14 +555,11 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
     };
   };
 
-  // Initialize Three.js only when show2DMap changes or on first load
   useEffect(() => {
     if (fitsData && !show2DMap && !sceneRef.current) {
-      // Only initialize if scene doesn't exist
       initThreeJS(fitsData);
       currentFitsDataRef.current = fitsData;
     } else if (!fitsData || show2DMap) {
-      // Clean up if switching away
       if (sceneRef.current) {
         cancelAnimationFrame(sceneRef.current.animationId);
         if (sceneRef.current.renderer.domElement.parentNode === containerRef.current) {
@@ -472,173 +582,110 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
     };
   }, [show2DMap]);
 
-  // Update texture when fitsData changes (for navigation)
+  // Smooth transition when fitsData changes
   useEffect(() => {
     if (sceneRef.current && fitsData && !show2DMap && currentFitsDataRef.current !== fitsData) {
-      // DON'T pause rotation yet - let it continue while we prepare data
+      // Pause rotation
+      sceneRef.current.pausedForTransition = true;
       
-      // Get old and new image data (this takes time, but globe keeps rotating)
-      const material = sceneRef.current.sphere.material as THREE.MeshBasicMaterial;
-      const oldCanvas = (material.map as THREE.CanvasTexture)?.image as HTMLCanvasElement;
-      let oldImageData: ImageData | null = null;
+      // Get current material
+      const currentMaterial = sceneRef.current.sphere.material;
+      let oldDataTexture: THREE.DataTexture | null = null;
       
-      if (oldCanvas) {
-        const oldCtx = oldCanvas.getContext('2d')!;
-        oldImageData = oldCtx.getImageData(0, 0, oldCanvas.width, oldCanvas.height);
+      if (currentMaterial instanceof THREE.ShaderMaterial) {
+        oldDataTexture = currentMaterial.uniforms.dataMap?.value || null;
       }
       
-      // Prepare new image data (computation happens here while globe rotates)
-      const newImageData = createImageDataFromFits(
+      // Create new data texture
+      const newDataTexture = createDataTexture(
         fitsData, 
         useFixedScale, 
         parseFloat(fixedMin), 
         parseFloat(fixedMax)
       );
       
-      // Create canvas for transition
-      const canvas = document.createElement('canvas');
-      canvas.width = fitsData.width;
-      canvas.height = fitsData.height;
-      const ctx = canvas.getContext('2d')!;
-      
-      // If no old data (first load), create gray imageData
-      if (!oldImageData) {
-        oldImageData = ctx.createImageData(fitsData.width, fitsData.height);
-        for (let i = 0; i < oldImageData.data.length; i += 4) {
-          oldImageData.data[i] = 128;
-          oldImageData.data[i + 1] = 128;
-          oldImageData.data[i + 2] = 128;
-          oldImageData.data[i + 3] = 255;
+      if (oldDataTexture) {
+        // Create transition material with both data textures
+        const transitionMaterial = createTransitionShaderMaterial(oldDataTexture, newDataTexture);
+        
+        // Replace material
+        if (currentMaterial instanceof THREE.Material) {
+          currentMaterial.dispose();
         }
-      }
-      
-      // Put initial old data on canvas
-      ctx.putImageData(oldImageData, 0, 0);
-      
-      const newTexture = new THREE.CanvasTexture(canvas);
-      newTexture.minFilter = THREE.LinearFilter;
-      newTexture.magFilter = THREE.LinearFilter;
-      newTexture.anisotropy = 16;
-      
-      const oldTexture = material.map;
-      material.map = newTexture;
-      material.needsUpdate = true;
-      
-      // NOW pause rotation right before transition starts
-      sceneRef.current.pausedForTransition = true;
-      
-      // Set up transition
-      transitionRef.current = {
-        isTransitioning: true,
-        startTime: Date.now(),
-        duration: 800, // 0.8 seconds transition (faster)
-        oldImageData,
-        newImageData,
-        canvas,
-        ctx
-      };
-      
-      // Dispose old texture to free memory
-      if (oldTexture) {
-        oldTexture.dispose();
+        sceneRef.current.sphere.material = transitionMaterial;
+        
+        // Start transition
+        transitionRef.current = {
+          isTransitioning: true,
+          startTime: Date.now(),
+          duration: 800
+        };
+      } else {
+        // First load - just set the data texture
+        const material = createShaderMaterial(newDataTexture);
+        sceneRef.current.sphere.material = material;
       }
       
       currentFitsDataRef.current = fitsData;
     }
   }, [fitsData, show2DMap, useFixedScale, fixedMin, fixedMax]);
 
-  // Update texture when scale settings change (without reinitializing the scene)
+  // Update when scale settings change
   useEffect(() => {
     if (sceneRef.current && fitsData && !show2DMap && currentFitsDataRef.current === fitsData) {
-      // Get old image data
-      const material = sceneRef.current.sphere.material as THREE.MeshBasicMaterial;
-      const oldCanvas = (material.map as THREE.CanvasTexture)?.image as HTMLCanvasElement;
-      let oldImageData: ImageData | null = null;
+      sceneRef.current.pausedForTransition = true;
       
-      if (oldCanvas) {
-        const oldCtx = oldCanvas.getContext('2d')!;
-        oldImageData = oldCtx.getImageData(0, 0, oldCanvas.width, oldCanvas.height);
+      const currentMaterial = sceneRef.current.sphere.material;
+      let oldDataTexture: THREE.DataTexture | null = null;
+      
+      if (currentMaterial instanceof THREE.ShaderMaterial) {
+        oldDataTexture = currentMaterial.uniforms.dataMap?.value || null;
       }
       
-      // Create new image data with new scale settings
-      const newImageData = createImageDataFromFits(
+      const newDataTexture = createDataTexture(
         fitsData, 
         useFixedScale, 
         parseFloat(fixedMin), 
         parseFloat(fixedMax)
       );
       
-      // Create canvas for transition
-      const canvas = document.createElement('canvas');
-      canvas.width = fitsData.width;
-      canvas.height = fitsData.height;
-      const ctx = canvas.getContext('2d')!;
-      
-      // If no old data, create it from current state
-      if (!oldImageData) {
-        oldImageData = ctx.createImageData(fitsData.width, fitsData.height);
-        for (let i = 0; i < oldImageData.data.length; i += 4) {
-          oldImageData.data[i] = 128;
-          oldImageData.data[i + 1] = 128;
-          oldImageData.data[i + 2] = 128;
-          oldImageData.data[i + 3] = 255;
+      if (oldDataTexture) {
+        const transitionMaterial = createTransitionShaderMaterial(oldDataTexture, newDataTexture);
+        
+        if (currentMaterial instanceof THREE.Material) {
+          currentMaterial.dispose();
         }
-      }
-      
-      // Put initial old data on canvas
-      ctx.putImageData(oldImageData, 0, 0);
-      
-      const newTexture = new THREE.CanvasTexture(canvas);
-      newTexture.minFilter = THREE.LinearFilter;
-      newTexture.magFilter = THREE.LinearFilter;
-      newTexture.anisotropy = 16;
-      
-      const oldTexture = material.map;
-      material.map = newTexture;
-      material.needsUpdate = true;
-      
-      // Pause rotation during scale transition
-      sceneRef.current.pausedForTransition = true;
-      
-      // Set up transition
-      transitionRef.current = {
-        isTransitioning: true,
-        startTime: Date.now(),
-        duration: 700, // Same 700ms transition for scale changes
-        oldImageData,
-        newImageData,
-        canvas,
-        ctx
-      };
-      
-      // Dispose old texture to free memory
-      if (oldTexture) {
-        oldTexture.dispose();
+        sceneRef.current.sphere.material = transitionMaterial;
+        
+        transitionRef.current = {
+          isTransitioning: true,
+          startTime: Date.now(),
+          duration: 800
+        };
+      } else {
+        const material = createShaderMaterial(newDataTexture);
+        sceneRef.current.sphere.material = material;
       }
     }
   }, [useFixedScale, fixedMin, fixedMax]);
 
-  // Draw 2D map whenever color settings change
   useEffect(() => {
     if (fitsData && canvas2DRef.current && show2DMap) {
       const ctx = canvas2DRef.current.getContext('2d');
       if (!ctx) return;
       
-      // Get old image data if it exists
       let oldImageData: ImageData | null = null;
       if (canvas2DRef.current.width > 0 && canvas2DRef.current.height > 0) {
         try {
           oldImageData = ctx.getImageData(0, 0, canvas2DRef.current.width, canvas2DRef.current.height);
         } catch (e) {
-          // If we can't get old data, that's okay
+          // Ignore
         }
       }
       
-      // Set canvas size
       canvas2DRef.current.width = fitsData.width;
       canvas2DRef.current.height = fitsData.height;
       
-      // Create new image data
       const newImageData = createImageDataFromFits(
         fitsData,
         useFixedScale,
@@ -646,7 +693,6 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
         parseFloat(fixedMax)
       );
       
-      // If no old data or dimensions changed, just draw immediately
       if (!oldImageData || 
           oldImageData.width !== newImageData.width || 
           oldImageData.height !== newImageData.height) {
@@ -654,19 +700,16 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
         return;
       }
       
-      // Cancel any existing transition
       if (transition2DRef.current?.animationId) {
         cancelAnimationFrame(transition2DRef.current.animationId);
       }
       
-      // Put old data on canvas first
       ctx.putImageData(oldImageData, 0, 0);
       
-      // Start transition
       transition2DRef.current = {
         isTransitioning: true,
         startTime: Date.now(),
-        duration: 700,
+        duration: 600,
         oldImageData,
         newImageData,
         animationId: 0
@@ -678,7 +721,6 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
 
   return (
     <>
-      {/* Color Scale Controls */}
       <div 
         className="absolute top-4 left-4 bg-black/70 backdrop-blur p-4 rounded-lg text-white z-20 pointer-events-auto"
         onTouchStart={(e) => e.stopPropagation()}
@@ -726,14 +768,12 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
         </div>
       </div>
       
-      {/* 3D Globe Container */}
       <div 
         ref={containerRef}
         className={`absolute inset-0 transition-opacity duration-300 ${show2DMap ? 'hidden' : 'block'}`}
         style={{ touchAction: 'pan-y pan-x pinch-zoom' }}
       />
       
-      {/* 2D Map Container */}
       {show2DMap && (
         <div className="absolute inset-0 flex items-center justify-center bg-black p-8">
           <canvas 
