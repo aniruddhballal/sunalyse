@@ -95,9 +95,17 @@ class PFSSExtrapolation:
             print(f"Found checkpoint at {checkpoint_path}")
             try:
                 with open(checkpoint_path, 'rb') as f:
-                    alm = pickle.load(f)
-                print(f"✓ Loaded {len(alm)} coefficients from checkpoint")
-                return alm
+                    checkpoint_data = pickle.load(f)
+                    alm = checkpoint_data['alm']
+                    saved_lmax = checkpoint_data['lmax']
+                print(f"✓ Loaded {len(alm)} coefficients from checkpoint (lmax={saved_lmax})")
+
+                if saved_lmax >= self.lmax:
+                    return alm
+                else:
+                    print(f"  Checkpoint has lmax={saved_lmax}, computing {saved_lmax+1} to {self.lmax}...")
+                    start_l = saved_lmax + 1
+
             except Exception as e:
                 print(f"⚠ Could not load checkpoint: {e}")
                 print("  Computing from scratch...")
@@ -113,7 +121,8 @@ class PFSSExtrapolation:
         
         print(f"Computing spherical harmonic coefficients (lmax={self.lmax})...")
         
-        for l in range(self.lmax + 1):
+        start_l = 0 if not ('start_l' in locals()) else start_l
+        for l in range(start_l, self.lmax + 1):
             for m in range(-l, l + 1):
                 # Compute spherical harmonic
                 ylm = sph_harm(m, l, phi_grid, theta_grid)
@@ -132,8 +141,9 @@ class PFSSExtrapolation:
         # Save checkpoint
         if checkpoint_path:
             try:
+                checkpoint_data = {'lmax': self.lmax, 'alm': alm}
                 with open(checkpoint_path, 'wb') as f:
-                    pickle.dump(alm, f)
+                    pickle.dump(checkpoint_data, f)
                 print(f"✓ Saved checkpoint to {checkpoint_path}")
             except Exception as e:
                 print(f"⚠ Could not save checkpoint: {e}")
@@ -373,7 +383,7 @@ def process_fits_file(fits_path, output_json_path, lmax=20, n_lines=100):
     
     # Generate checkpoint filename based on input file
     fits_stem = Path(fits_path).stem
-    checkpoint_path = checkpoint_dir / f"{fits_stem}_lmax{lmax}_alm.pkl"
+    checkpoint_path = checkpoint_dir / f"{fits_stem}_alm.pkl"
     
     # Initialize PFSS
     pfss = PFSSExtrapolation(lmax=lmax, r_source=2.5)
