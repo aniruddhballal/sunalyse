@@ -27,23 +27,57 @@ export default function CoronaViewer() {
   
   const [coronalData, setCoronalData] = useState<CoronalData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string>('');
+  const [carringtonNumber, setCarringtonNumber] = useState('2240');
+  const [currentCR, setCurrentCR] = useState<number | null>(null);
   const [isRotating, setIsRotating] = useState(true);
   const [showOpen, setShowOpen] = useState(true);
   const [showClosed, setShowClosed] = useState(true);
 
-  // Load coronal field data
-  const loadCoronalData = async (file: File) => {
+  // Fetch coronal field data from backend
+  const fetchCoronalData = async (crNumber: number) => {
     setLoading(true);
+    setError('');
+    
     try {
-      const text = await file.text();
-      const data = JSON.parse(text) as CoronalData;
+      const response = await fetch(`http://localhost:3001/api/coronal/${crNumber}`);
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error(`Coronal data for CR ${crNumber} not found. May need to be computed.`);
+        }
+        throw new Error(`Failed to fetch coronal data: ${response.statusText}`);
+      }
+      
+      const data = await response.json() as CoronalData;
       setCoronalData(data);
-    } catch (error) {
-      console.error('Error loading coronal data:', error);
-      alert('Failed to load coronal field data');
+      setCurrentCR(crNumber);
+    } catch (err) {
+      console.error('Error fetching coronal data:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load coronal data');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleFetchClick = () => {
+    const crNum = parseInt(carringtonNumber);
+    if (isNaN(crNum) || crNum < 2096 || crNum > 2285) {
+      setError('Please enter a valid Carrington rotation number (2096-2285)');
+      return;
+    }
+    fetchCoronalData(crNum);
+  };
+
+  const handleNavigate = (direction: 'next' | 'prev') => {
+    if (currentCR === null) return;
+    
+    const newCR = direction === 'next' ? currentCR + 1 : currentCR - 1;
+    
+    if (newCR < 2096 || newCR > 2285) return;
+    
+    setCarringtonNumber(newCR.toString());
+    fetchCoronalData(newCR);
   };
 
   useEffect(() => {
@@ -219,30 +253,49 @@ export default function CoronaViewer() {
     });
   }, [showOpen, showClosed]);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      loadCoronalData(file);
-    }
-  };
-
   return (
     <div className="w-full h-screen bg-black relative">
       {!coronalData ? (
         <div className="flex items-center justify-center h-full">
-          <div className="text-center">
-            <h1 className="text-white text-3xl mb-6">Solar Coronal Magnetic Field Viewer</h1>
-            <p className="text-gray-400 mb-8">Upload coronal field JSON data</p>
-            <label className="bg-blue-600 text-white px-6 py-3 rounded cursor-pointer hover:bg-blue-700 transition-colors">
-              Upload JSON
+          <div className="text-center max-w-md">
+            <h1 className="text-white text-3xl mb-4">Solar Coronal Magnetic Field</h1>
+            <p className="text-gray-400 mb-8">
+              Visualize PFSS extrapolation of coronal magnetic fields
+            </p>
+            
+            <div className="bg-black/50 backdrop-blur p-6 rounded-lg">
+              <label className="block text-white text-sm mb-2">
+                Carrington Rotation Number (2096-2285)
+              </label>
               <input
-                type="file"
-                accept=".json"
-                onChange={handleFileUpload}
-                className="hidden"
+                type="number"
+                value={carringtonNumber}
+                onChange={(e) => setCarringtonNumber(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleFetchClick()}
+                min={2096}
+                max={2285}
+                className="w-full px-4 py-2 bg-white/10 text-white rounded border border-white/20 focus:border-blue-500 focus:outline-none mb-4"
+                placeholder="e.g., 2240"
               />
-            </label>
-            {loading && <p className="text-white mt-4">Loading...</p>}
+              
+              <button
+                onClick={handleFetchClick}
+                disabled={loading}
+                className="w-full bg-blue-600 text-white px-6 py-3 rounded hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Loading...' : 'Load Coronal Field'}
+              </button>
+              
+              {error && (
+                <div className="mt-4 p-3 bg-red-500/20 border border-red-500 rounded text-red-200 text-sm">
+                  {error}
+                </div>
+              )}
+            </div>
+            
+            <p className="text-gray-500 text-xs mt-6">
+              Potential Field Source Surface (PFSS) model
+            </p>
           </div>
         </div>
       ) : (
@@ -250,7 +303,9 @@ export default function CoronaViewer() {
           <div ref={containerRef} className="w-full h-full" />
           
           <div className="absolute top-6 left-6 bg-black/70 backdrop-blur text-white p-4 rounded">
-            <h2 className="text-lg font-semibold mb-2">Coronal Field</h2>
+            <h2 className="text-lg font-semibold mb-2">
+              CR {currentCR} - Coronal Field
+            </h2>
             <p className="text-xs text-gray-300">lmax: {coronalData.metadata.lmax}</p>
             <p className="text-xs text-gray-300">
               Field lines: {coronalData.metadata.n_field_lines}
@@ -261,6 +316,24 @@ export default function CoronaViewer() {
           </div>
 
           <div className="absolute bottom-6 left-6 flex flex-col gap-2">
+            {/* Navigation buttons */}
+            <div className="grid grid-cols-2 gap-2 mb-2">
+              <button
+                onClick={() => handleNavigate('prev')}
+                disabled={loading || currentCR === null || currentCR <= 2096}
+                className="bg-black/70 backdrop-blur text-white px-4 py-2 rounded text-sm hover:bg-black/90 disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                ← Prev CR
+              </button>
+              <button
+                onClick={() => handleNavigate('next')}
+                disabled={loading || currentCR === null || currentCR >= 2285}
+                className="bg-black/70 backdrop-blur text-white px-4 py-2 rounded text-sm hover:bg-black/90 disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                Next CR →
+              </button>
+            </div>
+            
             <button
               onClick={() => setIsRotating(!isRotating)}
               className="bg-black/70 backdrop-blur text-white px-4 py-2 rounded text-sm hover:bg-black/90"
@@ -284,10 +357,14 @@ export default function CoronaViewer() {
               Closed Field Lines
             </button>
             <button
-              onClick={() => setCoronalData(null)}
+              onClick={() => {
+                setCoronalData(null);
+                setCurrentCR(null);
+                setError('');
+              }}
               className="bg-black/70 backdrop-blur text-white px-4 py-2 rounded text-sm hover:bg-black/90"
             >
-              Load Another
+              View Another
             </button>
           </div>
 

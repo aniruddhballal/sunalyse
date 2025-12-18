@@ -3,6 +3,7 @@ import cors from 'cors';
 import 'dotenv/config';
 import healthRoutes from './routes/health';
 import fitsRoutes from './routes/fits';
+import coronalRoutes from './routes/coronal';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -18,6 +19,7 @@ app.use(express.json());
 // Register routes
 app.use('/health', healthRoutes);
 app.use('/api/fits', fitsRoutes);
+app.use('/api/coronal', coronalRoutes);
 
 // Start server
 app.listen(PORT, () => {
