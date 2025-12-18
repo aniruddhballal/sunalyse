@@ -23,6 +23,8 @@ export default function CoronaViewer() {
     camera: THREE.PerspectiveCamera;
     renderer: THREE.WebGLRenderer;
     animationId: number;
+    fieldLineGroup: THREE.Group;
+    sourceSurface: THREE.Mesh;
   } | null>(null);
   
   const [coronalData, setCoronalData] = useState<CoronalData | null>(null);
@@ -80,17 +82,9 @@ export default function CoronaViewer() {
     fetchCoronalData(newCR);
   };
 
+  // Initialize Three.js scene ONCE on mount
   useEffect(() => {
-    if (!containerRef.current || !coronalData) return;
-
-    // Clean up previous scene
-    if (sceneRef.current) {
-      cancelAnimationFrame(sceneRef.current.animationId);
-      sceneRef.current.renderer.dispose();
-      if (containerRef.current.contains(sceneRef.current.renderer.domElement)) {
-        containerRef.current.removeChild(sceneRef.current.renderer.domElement);
-      }
-    }
+    if (!containerRef.current || sceneRef.current) return;
 
     // Setup scene
     const scene = new THREE.Scene();
@@ -119,11 +113,7 @@ export default function CoronaViewer() {
     scene.add(photosphere);
 
     // Add source surface (transparent sphere at r=2.5)
-    const sourceSurfaceGeometry = new THREE.SphereGeometry(
-      coronalData.metadata.r_source,
-      64,
-      64
-    );
+    const sourceSurfaceGeometry = new THREE.SphereGeometry(2.5, 64, 64);
     const sourceSurfaceMaterial = new THREE.MeshBasicMaterial({
       color: 0x4444ff,
       transparent: true,
@@ -136,33 +126,6 @@ export default function CoronaViewer() {
     // Create field line group
     const fieldLineGroup = new THREE.Group();
     scene.add(fieldLineGroup);
-
-    // Add field lines
-    coronalData.fieldLines.forEach((fieldLine) => {
-      if (fieldLine.points.length < 2) return;
-
-      const points = fieldLine.points.map(
-        ([x, y, z]) => new THREE.Vector3(x, y, z)
-      );
-
-      const geometry = new THREE.BufferGeometry().setFromPoints(points);
-
-      // Color based on polarity
-      const color = fieldLine.polarity === 'open' 
-        ? new THREE.Color(0x00ff00)  // Green for open
-        : new THREE.Color(0xff0000); // Red for closed
-
-      const material = new THREE.LineBasicMaterial({
-        color: color,
-        transparent: true,
-        opacity: 0.6,
-        linewidth: 1
-      });
-
-      const line = new THREE.Line(geometry, material);
-      line.userData = { polarity: fieldLine.polarity };
-      fieldLineGroup.add(line);
-    });
 
     // Lighting
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
@@ -210,7 +173,7 @@ export default function CoronaViewer() {
       }
 
       renderer.render(scene, camera);
-      sceneRef.current = { scene, camera, renderer, animationId };
+      sceneRef.current = { scene, camera, renderer, animationId, fieldLineGroup, sourceSurface };
     };
 
     animate();
@@ -234,15 +197,73 @@ export default function CoronaViewer() {
       renderer.domElement.removeEventListener('mouseup', onMouseUp);
       if (sceneRef.current) {
         cancelAnimationFrame(sceneRef.current.animationId);
+        renderer.dispose();
+        if (containerRef.current && containerRef.current.contains(renderer.domElement)) {
+          containerRef.current.removeChild(renderer.domElement);
+        }
       }
     };
-  }, [coronalData, isRotating]);
+  }, []); // Only run once on mount
 
-  // Update field line visibility
+  // Update field lines when coronal data changes
+  useEffect(() => {
+    if (!sceneRef.current || !coronalData) return;
+
+    const { fieldLineGroup, sourceSurface } = sceneRef.current;
+
+    // Clear existing field lines
+    while (fieldLineGroup.children.length > 0) {
+      const child = fieldLineGroup.children[0];
+      if (child instanceof THREE.Line) {
+        child.geometry.dispose();
+        if (Array.isArray(child.material)) {
+          child.material.forEach(m => m.dispose());
+        } else {
+          child.material.dispose();
+        }
+      }
+      fieldLineGroup.remove(child);
+    }
+
+    // Update source surface radius
+    sourceSurface.geometry.dispose();
+    sourceSurface.geometry = new THREE.SphereGeometry(coronalData.metadata.r_source, 64, 64);
+
+    // Add new field lines
+    coronalData.fieldLines.forEach((fieldLine) => {
+      if (fieldLine.points.length < 2) return;
+
+      const points = fieldLine.points.map(
+        ([x, y, z]) => new THREE.Vector3(x, y, z)
+      );
+
+      const geometry = new THREE.BufferGeometry().setFromPoints(points);
+
+      // Color based on polarity
+      const color = fieldLine.polarity === 'open' 
+        ? new THREE.Color(0x00ff00)  // Green for open
+        : new THREE.Color(0xff0000); // Red for closed
+
+      const material = new THREE.LineBasicMaterial({
+        color: color,
+        transparent: true,
+        opacity: 0.6,
+        linewidth: 1
+      });
+
+      const line = new THREE.Line(geometry, material);
+      line.userData = { polarity: fieldLine.polarity };
+      line.visible = fieldLine.polarity === 'open' ? showOpen : showClosed;
+      fieldLineGroup.add(line);
+    });
+
+  }, [coronalData, showOpen, showClosed]);
+
+  // Update field line visibility when toggles change
   useEffect(() => {
     if (!sceneRef.current) return;
 
-    sceneRef.current.scene.traverse((obj) => {
+    sceneRef.current.fieldLineGroup.traverse((obj) => {
       if (obj instanceof THREE.Line && obj.userData.polarity) {
         if (obj.userData.polarity === 'open') {
           obj.visible = showOpen;
@@ -255,9 +276,13 @@ export default function CoronaViewer() {
 
   return (
     <div className="w-full h-screen bg-black relative">
+      {/* Container is ALWAYS rendered */}
+      <div ref={containerRef} className="w-full h-full" />
+      
+      {/* UI overlay */}
       {!coronalData ? (
-        <div className="flex items-center justify-center h-full">
-          <div className="text-center max-w-md">
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="text-center max-w-md pointer-events-auto">
             <h1 className="text-white text-3xl mb-4">Solar Coronal Magnetic Field</h1>
             <p className="text-gray-400 mb-8">
               Visualize PFSS extrapolation of coronal magnetic fields
@@ -300,9 +325,7 @@ export default function CoronaViewer() {
         </div>
       ) : (
         <>
-          <div ref={containerRef} className="w-full h-full" />
-          
-          <div className="absolute top-6 left-6 bg-black/70 backdrop-blur text-white p-4 rounded">
+          <div className="absolute top-6 left-6 bg-black/70 backdrop-blur text-white p-4 rounded pointer-events-auto">
             <h2 className="text-lg font-semibold mb-2">
               CR {currentCR} - Coronal Field
             </h2>
@@ -315,7 +338,7 @@ export default function CoronaViewer() {
             </p>
           </div>
 
-          <div className="absolute bottom-6 left-6 flex flex-col gap-2">
+          <div className="absolute bottom-6 left-6 flex flex-col gap-2 pointer-events-auto">
             {/* Navigation buttons */}
             <div className="grid grid-cols-2 gap-2 mb-2">
               <button
@@ -368,7 +391,7 @@ export default function CoronaViewer() {
             </button>
           </div>
 
-          <div className="absolute bottom-6 right-6 text-gray-400 text-xs">
+          <div className="absolute bottom-6 right-6 text-gray-400 text-xs pointer-events-none">
             <div className="flex items-center gap-2 mb-1">
               <div className="w-4 h-0.5 bg-green-500"></div>
               <span>Open field lines</span>
