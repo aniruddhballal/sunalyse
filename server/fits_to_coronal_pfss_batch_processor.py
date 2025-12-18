@@ -404,21 +404,123 @@ def process_fits_file(fits_path, output_json_path, lmax=20, n_lines=100):
     #     print("✓ Cleaned up checkpoint file")
 
 
+def batch_process_all_fits(fits_dir="fits_files", output_dir="coronal_data", 
+                           lmax=30, n_lines=100, start_cr=2096, end_cr=2285):
+    """
+    Batch process all FITS files in a directory.
+    
+    Parameters:
+    -----------
+    fits_dir : str
+        Directory containing FITS files
+    output_dir : str
+        Directory to save coronal JSON files
+    lmax : int
+        Spherical harmonic degree
+    n_lines : int
+        Number of field lines to trace
+    start_cr : int
+        Starting Carrington rotation number
+    end_cr : int
+        Ending Carrington rotation number
+    """
+    fits_path = Path(fits_dir)
+    output_path = Path(output_dir)
+    
+    # Create output directory
+    output_path.mkdir(exist_ok=True)
+    
+    # Find all FITS files
+    fits_files = sorted(fits_path.glob("*.fits"))
+    
+    if not fits_files:
+        print(f"❌ No FITS files found in {fits_dir}")
+        return
+    
+    print(f"\n{'='*60}")
+    print(f"BATCH PROCESSING: Found {len(fits_files)} FITS files")
+    print(f"{'='*60}\n")
+    
+    # Track progress
+    total_files = len(fits_files)
+    processed = 0
+    skipped = 0
+    failed = 0
+    
+    for idx, fits_file in enumerate(fits_files, 1):
+        # Extract CR number from filename (e.g., hmi.Synoptic_Mr_small.2240.fits)
+        try:
+            cr_match = fits_file.stem.split('.')
+            cr_number = None
+            for part in cr_match:
+                if part.isdigit():
+                    cr_number = int(part)
+                    break
+            
+            if cr_number is None or cr_number < start_cr or cr_number > end_cr:
+                print(f"[{idx}/{total_files}] ⏭️  Skipping {fits_file.name} (CR out of range)")
+                skipped += 1
+                continue
+            
+            output_json = output_path / f"cr{cr_number}_coronal.json"
+            
+            # Skip if already processed
+            if output_json.exists():
+                print(f"[{idx}/{total_files}] ✓ Already exists: {output_json.name}")
+                processed += 1
+                continue
+            
+            print(f"\n[{idx}/{total_files}] Processing CR {cr_number}...")
+            print(f"Input:  {fits_file}")
+            print(f"Output: {output_json}")
+            
+            # Process the file
+            process_fits_file(
+                fits_path=str(fits_file),
+                output_json_path=str(output_json),
+                lmax=lmax,
+                n_lines=n_lines
+            )
+            
+            processed += 1
+            print(f"✓ Successfully processed CR {cr_number} ({processed}/{total_files})")
+            
+        except Exception as e:
+            print(f"❌ Failed to process {fits_file.name}: {e}")
+            failed += 1
+            continue
+    
+    # Summary
+    print(f"\n{'='*60}")
+    print(f"BATCH PROCESSING COMPLETE")
+    print(f"{'='*60}")
+    print(f"Total files found:    {total_files}")
+    print(f"Successfully processed: {processed}")
+    print(f"Skipped:              {skipped}")
+    print(f"Failed:               {failed}")
+    print(f"{'='*60}\n")
+
+
 # Example usage
 if __name__ == "__main__":
-    # Process a single FITS file with optimized settings
-    process_fits_file(
-        fits_path="hmi.Synoptic_Mr_small.2240.fits",
-        output_json_path="cr2240_coronal.json",
-        lmax=30,          # Higher = more detail (but slower)
-        n_lines=100       # Reduced for faster processing
+    # ============================================================
+    # BATCH PROCESS ALL FITS FILES (CR 2096-2285)
+    # ============================================================
+    batch_process_all_fits(
+        fits_dir="fits_files",      # Folder containing your FITS files
+        output_dir="coronal_data",  # Where to save JSON files
+        lmax=30,                    # Spherical harmonic degree (30 is good balance)
+        n_lines=100,                # Number of field lines (100 for speed, 500 for detail)
+        start_cr=2096,              # Starting Carrington rotation
+        end_cr=2285                 # Ending Carrington rotation
     )
     
-    # Batch process multiple files
-    # fits_dir = Path("fits_files")
-    # output_dir = Path("coronal_data")
-    # output_dir.mkdir(exist_ok=True)
-    # 
-    # for fits_file in fits_dir.glob("*.fits"):
-    #     output_json = output_dir / f"{fits_file.stem}_coronal.json"
-    #     process_fits_file(str(fits_file), str(output_json), lmax=30, n_lines=100)
+    # ============================================================
+    # OR PROCESS SINGLE FILE
+    # ============================================================
+    # process_fits_file(
+    #     fits_path="fits_files/hmi.Synoptic_Mr_small.2240.fits",
+    #     output_json_path="coronal_data/cr2240_coronal.json",
+    #     lmax=30,
+    #     n_lines=100
+    # )
