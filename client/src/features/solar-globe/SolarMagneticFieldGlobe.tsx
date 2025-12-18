@@ -1,138 +1,61 @@
-import { useState, useRef } from 'react';
+// SolarMagneticFieldGlobe.tsx (Refactored)
+
+import { useRef } from 'react';
 import UploadView from './UploadView';
 import ViewerView from './ViewerView';
-import { parseFITS } from './fits/fitsUtils';
-import type { FITSData } from './fits/types';
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL;
-if (!API_BASE) {
-  throw new Error('VITE_API_BASE_URL is not defined');
-}
+import { useFileUpload } from './hooks/useFileUpload';
+import { useCarringtonData } from './hooks/useCarringtonData';
 
 export default function SolarMagneticFieldGlobe() {
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [isUploading, setIsUploading] = useState(false);
-  const [fileName, setFileName] = useState('');
-  const [fitsData, setFitsData] = useState<FITSData | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [carringtonNumber, setCarringtonNumber] = useState('');
-  const [currentCRNumber, setCurrentCRNumber] = useState<number | undefined>(undefined);
-  const [fetchError, setFetchError] = useState('');
-  const [isNavigating, setIsNavigating] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const {
+    uploadProgress,
+    isUploading,
+    fileName,
+    fitsData,
+    isProcessing,
+    handleFileSelect,
+    reset: resetFileUpload,
+    setFileName,
+    setFitsData,
+    setIsProcessing,
+    setIsUploading,
+    setUploadProgress
+  } = useFileUpload();
 
-  const fetchCarringtonData = async (rotationNum: number, isNavigation = false) => {
-    if (rotationNum < 2096 || rotationNum > 2285) {
-      setFetchError('Carrington rotation number must be between 2096 and 2285');
-      return;
-    }
+  const {
+    carringtonNumber,
+    setCarringtonNumber,
+    currentCRNumber,
+    fetchError,
+    isNavigating,
+    fetchCarringtonData,
+    reset: resetCarrington
+  } = useCarringtonData();
 
-    setFetchError('');
-    
-    if (isNavigation) {
-      setIsNavigating(true);
-    } else {
-      setIsUploading(true);
-      setUploadProgress(0);
-      setFitsData(null);
-    }
-    
-    setFileName(`CR${rotationNum}.fits`);
-
-    try {
-      if (!isNavigation) {
-        const progressInterval = setInterval(() => {
-          setUploadProgress(prev => Math.min(prev + 15, 90));
-        }, 200);
-
-        const response = await fetch(
-          `${API_BASE}/api/fits/carrington/${rotationNum}`
-        );
-
-        clearInterval(progressInterval);
-        setUploadProgress(100);
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch CR${rotationNum}: ${response.statusText}`);
-        }
-
-        const blob = await response.blob();
-        const file = new File([blob], `CR${rotationNum}.fits`, { type: 'application/fits' });
-
-        setIsUploading(false);
-        setIsProcessing(true);
-        
-        const parsed = await parseFITS(file);
-        setFitsData(parsed);
-        setCurrentCRNumber(rotationNum);
-        setIsProcessing(false);
-      } else {
-        // For navigation, fetch and process in background
-        const response = await fetch(
-          `${API_BASE}/api/fits/carrington/${rotationNum}`
-        );
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch CR${rotationNum}: ${response.statusText}`);
-        }
-
-        const blob = await response.blob();
-        const file = new File([blob], `CR${rotationNum}.fits`, { type: 'application/fits' });
-        
-        const parsed = await parseFITS(file);
-        setFitsData(parsed);
-        setCurrentCRNumber(rotationNum);
-        setIsNavigating(false);
-      }
-      
-    } catch (error) {
-      setIsUploading(false);
-      setIsNavigating(false);
-      setFetchError(error instanceof Error ? error.message : 'Failed to fetch FITS file');
-      setUploadProgress(0);
-    }
-  };
-
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    
-    setFetchError('');
-    setFileName(file.name);
-    setIsUploading(true);
-    setUploadProgress(0);
-    setFitsData(null);
-    setCurrentCRNumber(undefined);
-
-    const uploadInterval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(uploadInterval);
-          return 100;
-        }
-        return prev + 10;
-      });
-    }, 100);
-
-    setTimeout(async () => {
-      setIsUploading(false);
-      
-      if (file.name.toLowerCase().endsWith('.fits')) {
-        setIsProcessing(true);
-        const parsed = await parseFITS(file);
-        setFitsData(parsed);
-        setIsProcessing(false);
-      }
-    }, 1200);
+    if (file) {
+      resetCarrington();
+      handleFileSelect(file);
+    }
   };
 
   const handleCarringtonFetch = async () => {
     const rotationNum = parseInt(carringtonNumber);
     if (!rotationNum) {
-      setFetchError('Please enter a valid Carrington rotation number');
       return;
     }
-    await fetchCarringtonData(rotationNum, false);
+    await fetchCarringtonData(
+      rotationNum,
+      false,
+      setFileName,
+      setFitsData,
+      setIsUploading,
+      setUploadProgress,
+      setIsProcessing
+    );
   };
 
   const handleNavigate = async (direction: 'next' | 'prev') => {
@@ -142,7 +65,15 @@ export default function SolarMagneticFieldGlobe() {
       ? currentCRNumber + 1 
       : currentCRNumber - 1;
     
-    await fetchCarringtonData(newCRNumber, true);
+    await fetchCarringtonData(
+      newCRNumber,
+      true,
+      setFileName,
+      setFitsData,
+      setIsUploading,
+      setUploadProgress,
+      setIsProcessing
+    );
   };
 
   const handleButtonClick = () => {
@@ -150,14 +81,8 @@ export default function SolarMagneticFieldGlobe() {
   };
 
   const handleReset = () => {
-    setUploadProgress(0);
-    setIsUploading(false);
-    setFileName('');
-    setFitsData(null);
-    setCarringtonNumber('');
-    setCurrentCRNumber(undefined);
-    setFetchError('');
-    setIsNavigating(false);
+    resetFileUpload();
+    resetCarrington();
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -168,7 +93,7 @@ export default function SolarMagneticFieldGlobe() {
       <input
         ref={fileInputRef}
         type="file"
-        onChange={handleFileSelect}
+        onChange={handleFileChange}
         className="hidden"
         accept=".fits"
       />

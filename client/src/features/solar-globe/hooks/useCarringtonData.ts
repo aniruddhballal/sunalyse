@@ -19,9 +19,9 @@ export const useCarringtonData = () => {
     rotationNum: number,
     isNavigation: boolean,
     setFileName: (name: string) => void,
-    setFitsData: (data: FITSData) => void,
+    setFitsData: (data: FITSData | null) => void,
     setIsUploading: (value: boolean) => void,
-    setUploadProgress: (value: number) => void,
+    setUploadProgress: (value: number | ((prev: number) => number)) => void,
     setIsProcessing: (value: boolean) => void
   ) => {
     if (rotationNum < 2096 || rotationNum > 2285) {
@@ -36,7 +36,7 @@ export const useCarringtonData = () => {
     } else {
       setIsUploading(true);
       setUploadProgress(0);
-      setFitsData(null as any);
+      setFitsData(null);
     }
     
     setFileName(`CR${rotationNum}.fits`);
