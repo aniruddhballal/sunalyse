@@ -1,5 +1,3 @@
-// SolarMagneticFieldGlobe.tsx (Refactored)
-
 import { useRef } from 'react';
 import UploadView from './UploadView';
 import ViewerView from './ViewerView';
