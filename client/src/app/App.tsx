@@ -1,7 +1,7 @@
-import CoronaViewer from "../features/corona-viewer/CoronaViewer";
+import SolarMagneticFieldGlobe from "../features/solar-globe/SolarMagneticFieldGlobe";
 
 function App() {
-  return <CoronaViewer />;
+  return <SolarMagneticFieldGlobe />;
 }
 
 export default App;
