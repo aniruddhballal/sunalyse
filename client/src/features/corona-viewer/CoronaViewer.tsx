@@ -25,6 +25,7 @@ export default function CoronaViewer() {
     animationId: number;
     fieldLineGroup: THREE.Group;
     sourceSurface: THREE.Mesh;
+    isDragging: boolean;
   } | null>(null);
   
   const [coronalData, setCoronalData] = useState<CoronalData | null>(null);
@@ -35,6 +36,12 @@ export default function CoronaViewer() {
   const [isRotating, setIsRotating] = useState(true);
   const [showOpen, setShowOpen] = useState(true);
   const [showClosed, setShowClosed] = useState(true);
+
+  const isRotatingRef = useRef(isRotating);
+
+  useEffect(() => {
+    isRotatingRef.current = isRotating;
+  }, [isRotating]);
 
   // Fetch coronal field data from backend
   const fetchCoronalData = async (crNumber: number) => {
@@ -138,17 +145,24 @@ export default function CoronaViewer() {
     pointLight.position.set(5, 5, 5);
     scene.add(pointLight);
 
-    // Mouse controls
+    // Mouse and touch controls
     let isDragging = false;
     let previousMousePosition = { x: 0, y: 0 };
+    let touchStartedOnCanvas = false;
 
     const onMouseDown = (e: MouseEvent) => {
+      e.stopPropagation();
       isDragging = true;
+      if (sceneRef.current) {
+        sceneRef.current.isDragging = true;
+      }
       previousMousePosition = { x: e.clientX, y: e.clientY };
+      renderer.domElement.style.cursor = 'grabbing';
     };
 
     const onMouseMove = (e: MouseEvent) => {
       if (!isDragging) return;
+      e.stopPropagation();
 
       const deltaX = e.clientX - previousMousePosition.x;
       const deltaY = e.clientY - previousMousePosition.y;
@@ -159,27 +173,95 @@ export default function CoronaViewer() {
       previousMousePosition = { x: e.clientX, y: e.clientY };
     };
 
-    const onMouseUp = () => {
+    const onMouseUp = (e: MouseEvent) => {
+      e.stopPropagation();
       isDragging = false;
+      if (sceneRef.current) {
+        sceneRef.current.isDragging = false;
+      }
+      renderer.domElement.style.cursor = 'default';
+    };
+
+    const onTouchStart = (e: TouchEvent) => {
+      const target = e.target as HTMLElement;
+      if (target !== renderer.domElement) {
+        touchStartedOnCanvas = false;
+        return;
+      }
+      
+      e.stopPropagation();
+      
+      if (e.touches.length === 1) {
+        touchStartedOnCanvas = true;
+        isDragging = true;
+        if (sceneRef.current) {
+          sceneRef.current.isDragging = true;
+        }
+        previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (!touchStartedOnCanvas || !isDragging || e.touches.length !== 1) return;
+      
+      e.preventDefault();
+      e.stopPropagation();
+      
+      const deltaX = e.touches[0].clientX - previousMousePosition.x;
+      const deltaY = e.touches[0].clientY - previousMousePosition.y;
+
+      scene.rotation.y += deltaX * 0.01;
+      scene.rotation.x += deltaY * 0.01;
+
+      previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      e.stopPropagation();
+      isDragging = false;
+      if (sceneRef.current) {
+        sceneRef.current.isDragging = false;
+      }
+      touchStartedOnCanvas = false;
     };
 
     renderer.domElement.addEventListener('mousedown', onMouseDown);
     renderer.domElement.addEventListener('mousemove', onMouseMove);
     renderer.domElement.addEventListener('mouseup', onMouseUp);
+    renderer.domElement.addEventListener('mouseleave', onMouseUp);
+    renderer.domElement.addEventListener('touchstart', onTouchStart, { passive: true });
+    renderer.domElement.addEventListener('touchmove', onTouchMove, { passive: false });
+    renderer.domElement.addEventListener('touchend', onTouchEnd);
+    renderer.domElement.addEventListener('touchcancel', onTouchEnd);
 
     // Animation loop
     const animate = () => {
       const animationId = requestAnimationFrame(animate);
 
-      if (isRotating && !isDragging) {
+      const shouldRotate = !isDragging && isRotatingRef.current;
+      
+      if (shouldRotate) {
         scene.rotation.y += 0.001;
       }
 
       renderer.render(scene, camera);
-      sceneRef.current = { scene, camera, renderer, animationId, fieldLineGroup, sourceSurface };
+      
+      if (sceneRef.current) {
+        sceneRef.current.animationId = animationId;
+      }
     };
 
     animate();
+
+    sceneRef.current = { 
+      scene, 
+      camera, 
+      renderer, 
+      animationId: 0, 
+      fieldLineGroup, 
+      sourceSurface,
+      isDragging: false
+    };
 
     // Resize handler
     const handleResize = () => {
@@ -198,6 +280,11 @@ export default function CoronaViewer() {
       renderer.domElement.removeEventListener('mousedown', onMouseDown);
       renderer.domElement.removeEventListener('mousemove', onMouseMove);
       renderer.domElement.removeEventListener('mouseup', onMouseUp);
+      renderer.domElement.removeEventListener('mouseleave', onMouseUp);
+      renderer.domElement.removeEventListener('touchstart', onTouchStart);
+      renderer.domElement.removeEventListener('touchmove', onTouchMove);
+      renderer.domElement.removeEventListener('touchend', onTouchEnd);
+      renderer.domElement.removeEventListener('touchcancel', onTouchEnd);
       if (sceneRef.current) {
         cancelAnimationFrame(sceneRef.current.animationId);
         renderer.dispose();
