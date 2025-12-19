@@ -39,7 +39,7 @@ export default function DetailsPanel({ fitsData, fileName, onClose }: {
 
   return (
     <div 
-      className="absolute top-6 right-6 bg-black/80 border border-gray-800 p-4 space-y-3 backdrop-blur z-20 pointer-events-auto"
+      className="absolute top-24 right-6 md:top-6 bg-black/80 border border-gray-800 p-4 space-y-3 backdrop-blur z-20 pointer-events-auto"
       onTouchStart={(e) => e.stopPropagation()}
       onTouchMove={(e) => e.stopPropagation()}
     >
