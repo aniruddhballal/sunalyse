@@ -21,7 +21,7 @@ export default function ScaleControls({
 }: ScaleControlsProps) {
   return (
     <div 
-      className="absolute top-4 left-4 md:top-4 sm:top-20 bg-black/70 backdrop-blur p-4 rounded-lg text-white z-20 pointer-events-auto"
+      className="absolute top-24 left-4 md:top-4 bg-black/70 backdrop-blur p-4 rounded-lg text-white z-20 pointer-events-auto"
       onTouchStart={(e) => e.stopPropagation()}
       onTouchMove={(e) => e.stopPropagation()}
     >
