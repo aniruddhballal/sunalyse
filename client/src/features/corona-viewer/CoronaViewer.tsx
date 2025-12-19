@@ -94,7 +94,8 @@ export default function CoronaViewer() {
 
   // Initialize Three.js scene ONCE on mount
   useEffect(() => {
-    if (!containerRef.current || sceneRef.current) return;
+    // if (!containerRef.current || sceneRef.current) return;
+    if (!containerRef.current || sceneRef.current || !coronalData) return;
 
     // Setup scene
     const scene = new THREE.Scene();
@@ -293,7 +294,8 @@ export default function CoronaViewer() {
         }
       }
     };
-  }, []); // Only run once on mount
+  // }, []); // Only run once on mount
+  }, [coronalData]); // Only run when coronalData is available
 
   // Update field lines when coronal data changes
   useEffect(() => {
