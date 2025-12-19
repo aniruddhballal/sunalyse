@@ -78,6 +78,13 @@ export default function CoronaViewer() {
   const [showClosed, setShowClosed] = useState(true);
 
   const isRotatingRef = useRef(isRotating);
+  const transitionRef = useRef<{
+    isTransitioning: boolean;
+    startTime: number;
+    duration: number;
+    oldFieldLines: FieldLine[];
+    newFieldLines: FieldLine[];
+  } | null>(null);
 
   useEffect(() => {
     isRotatingRef.current = isRotating;
@@ -278,6 +285,43 @@ export default function CoronaViewer() {
     const animate = () => {
       const animationId = requestAnimationFrame(animate);
 
+      // Handle field line transitions
+      if (transitionRef.current?.isTransitioning) {
+        const elapsed = Date.now() - transitionRef.current.startTime;
+        const rawProgress = Math.min(elapsed / transitionRef.current.duration, 1);
+        const progress = rawProgress < 0.5 
+          ? 4 * rawProgress * rawProgress * rawProgress 
+          : 1 - Math.pow(-2 * rawProgress + 2, 3) / 2; // easeInOutCubic
+
+        // Update all field line geometries with interpolated positions
+        fieldLineGroup.children.forEach((line, index) => {
+          if (line instanceof THREE.Line) {
+            const oldLine = transitionRef.current!.oldFieldLines[index];
+            const newLine = transitionRef.current!.newFieldLines[index];
+            
+            if (oldLine && newLine) {
+              const positions = line.geometry.attributes.position.array as Float32Array;
+              const maxPoints = Math.max(oldLine.points.length, newLine.points.length);
+              
+              for (let i = 0; i < maxPoints; i++) {
+                const oldPoint = oldLine.points[Math.min(i, oldLine.points.length - 1)];
+                const newPoint = newLine.points[Math.min(i, newLine.points.length - 1)];
+                
+                positions[i * 3] = oldPoint[0] + (newPoint[0] - oldPoint[0]) * progress;
+                positions[i * 3 + 1] = oldPoint[1] + (newPoint[1] - oldPoint[1]) * progress;
+                positions[i * 3 + 2] = oldPoint[2] + (newPoint[2] - oldPoint[2]) * progress;
+              }
+              
+              line.geometry.attributes.position.needsUpdate = true;
+            }
+          }
+        });
+
+        if (rawProgress >= 1) {
+          transitionRef.current = null;
+        }
+      }
+
       const shouldRotate = !isDragging && isRotatingRef.current;
       
       if (shouldRotate) {
@@ -341,6 +385,14 @@ export default function CoronaViewer() {
 
     const { fieldLineGroup, sourceSurface } = sceneRef.current;
 
+    // Store old field lines for transition
+    const oldFieldLines: FieldLine[] = [];
+    fieldLineGroup.children.forEach((child) => {
+      if (child instanceof THREE.Line && child.userData.fieldLineData) {
+        oldFieldLines.push(child.userData.fieldLineData);
+      }
+    });
+
     // Clear existing field lines
     while (fieldLineGroup.children.length > 0) {
       const child = fieldLineGroup.children[0];
@@ -382,10 +434,24 @@ export default function CoronaViewer() {
       });
 
       const line = new THREE.Line(geometry, material);
-      line.userData = { polarity: fieldLine.polarity };
+      line.userData = { 
+        polarity: fieldLine.polarity,
+        fieldLineData: fieldLine
+      };
       line.visible = fieldLine.polarity === 'open' ? showOpen : showClosed;
       fieldLineGroup.add(line);
     });
+
+    // Start transition if we have old field lines
+    if (oldFieldLines.length > 0 && coronalData.fieldLines.length > 0) {
+      transitionRef.current = {
+        isTransitioning: true,
+        startTime: Date.now(),
+        duration: 800,
+        oldFieldLines: oldFieldLines,
+        newFieldLines: coronalData.fieldLines
+      };
+    }
 
   }, [coronalData, showOpen, showClosed]);
 
