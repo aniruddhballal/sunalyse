@@ -1,104 +1,92 @@
-import express, { Request, Response } from 'express';
-import path from 'path';
-import fs from 'fs/promises';
-import { existsSync } from 'fs';
+import { Router, Request, Response } from 'express';
+import fetch from 'node-fetch';
 
-const router = express.Router();
+const router = Router();
 
-// Path to coronal data directory
-const CORONAL_DATA_DIR = path.join(__dirname, '..', 'coronal_data');
+// Validate required env vars
+const HF_USER = process.env.HF_USER;
+const HF_CORONA = process.env.HF_CORONA;
+
+if (!HF_USER || !HF_CORONA) {
+  throw new Error('HF_USER and HF_CORONA must be set in environment variables');
+}
+
+const HF_RESOLVE_BASE =
+  `https://huggingface.co/datasets/${HF_USER}/${HF_CORONA}/resolve/main`;
+
+const HF_TREE_API =
+  `https://huggingface.co/api/datasets/${HF_USER}/${HF_CORONA}/tree/main`;
 
 /**
  * GET /api/coronal/:crNumber
- * Fetch coronal field data for a specific Carrington rotation
+ * Fetch coronal PFSS JSON for a specific Carrington rotation
  */
 router.get('/:crNumber', async (req: Request, res: Response) => {
   try {
-    const crNumber = parseInt(req.params.crNumber);
+    const crNumber = Number(req.params.crNumber);
 
-    // Validate CR number
-    if (isNaN(crNumber) || crNumber < 2096 || crNumber > 2285) {
+    if (!Number.isInteger(crNumber) || crNumber < 2096 || crNumber > 2285) {
       return res.status(400).json({
         error: 'Invalid Carrington rotation number',
-        message: 'CR number must be between 2096 and 2285'
+        message: 'CR number must be between 2096 and 2285',
       });
     }
 
-    // Construct file path
     const filename = `cr${crNumber}_coronal.json`;
-    const filePath = path.join(CORONAL_DATA_DIR, filename);
+    const url = `${HF_RESOLVE_BASE}/${filename}`;
 
-    // Check if file exists
-    if (!existsSync(filePath)) {
+    const hfResponse = await fetch(url);
+
+    if (!hfResponse.ok) {
       return res.status(404).json({
         error: 'Coronal data not found',
-        message: `Coronal field data for CR ${crNumber} has not been computed yet`,
-        crNumber
+        message: `No coronal field data available for CR ${crNumber}`,
+        crNumber,
       });
     }
 
-    // Read and send the JSON file
-    const data = await fs.readFile(filePath, 'utf-8');
-    const jsonData = JSON.parse(data);
-
-    res.json(jsonData);
+    const json = await hfResponse.json();
+    res.json(json);
   } catch (error) {
-    console.error('Error fetching coronal data:', error);
+    console.error('Error fetching coronal data from Hugging Face:', error);
     res.status(500).json({
-      error: 'Failed to read coronal data',
-      message: error instanceof Error ? error.message : 'Unknown error'
+      error: 'Failed to fetch coronal data',
+      message: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 });
 
 /**
  * GET /api/coronal/available/list
- * Get list of available Carrington rotations with coronal data
+ * List all available Carrington rotations in Hugging Face dataset
  */
-router.get('/available/list', async (req: Request, res: Response) => {
+router.get('/available/list', async (_req: Request, res: Response) => {
   try {
-    // Check if directory exists
-    if (!existsSync(CORONAL_DATA_DIR)) {
-      return res.json({
-        availableCRNumbers: [],
-        count: 0,
-        message: 'Coronal data directory not found'
-      });
-    }
+    const response = await fetch(HF_TREE_API);
+    const files = await response.json();
 
-    // Read all files in coronal_data directory
-    const files = await fs.readdir(CORONAL_DATA_DIR);
-
-    // Extract CR numbers from filenames like "cr2240_coronal.json"
-    const availableCRs: number[] = [];
-    
-    for (const file of files) {
-      if (file.endsWith('_coronal.json')) {
-        const match = file.match(/^cr(\d+)_coronal\.json$/);
-        if (match) {
-          const crNum = parseInt(match[1]);
-          if (crNum >= 2096 && crNum <= 2285) {
-            availableCRs.push(crNum);
-          }
-        }
-      }
-    }
-
-    availableCRs.sort((a, b) => a - b);
+    const availableCRs = files
+      .filter((f: any) =>
+        typeof f.rfilename === 'string' &&
+        /^cr\d+_coronal\.json$/.test(f.rfilename)
+      )
+      .map((f: any) => Number(f.rfilename.match(/\d+/)[0]))
+      .filter((cr: number) => cr >= 2096 && cr <= 2285)
+      .sort((a: number, b: number) => a - b);
 
     res.json({
       availableCRNumbers: availableCRs,
       count: availableCRs.length,
       range: {
-        min: availableCRs.length > 0 ? availableCRs[0] : null,
-        max: availableCRs.length > 0 ? availableCRs[availableCRs.length - 1] : null
-      }
+        min: availableCRs[0] ?? null,
+        max: availableCRs[availableCRs.length - 1] ?? null,
+      },
     });
   } catch (error) {
-    console.error('Error listing available coronal data:', error);
+    console.error('Error listing coronal data from Hugging Face:', error);
     res.status(500).json({
       error: 'Failed to list available data',
-      message: error instanceof Error ? error.message : 'Unknown error'
+      message: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 });
