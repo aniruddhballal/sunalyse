@@ -30,7 +30,7 @@ export default function CoronaViewer() {
   const [coronalData, setCoronalData] = useState<CoronalData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
-  const [carringtonNumber, setCarringtonNumber] = useState('2096');
+  const [carringtonNumber, setCarringtonNumber] = useState('2240');
   const [currentCR, setCurrentCR] = useState<number | null>(null);
   const [isRotating, setIsRotating] = useState(true);
   const [showOpen, setShowOpen] = useState(true);
@@ -64,8 +64,8 @@ export default function CoronaViewer() {
 
   const handleFetchClick = () => {
     const crNum = parseInt(carringtonNumber);
-    if (isNaN(crNum) || crNum < 2096 || crNum > 2100) {
-      setError('Please enter a valid Carrington rotation number (2096-2100)');
+    if (isNaN(crNum) || crNum < 2096 || crNum > 2285) {
+      setError('Please enter a valid Carrington rotation number (2096-2285)');
       return;
     }
     fetchCoronalData(crNum);
@@ -76,7 +76,7 @@ export default function CoronaViewer() {
     
     const newCR = direction === 'next' ? currentCR + 1 : currentCR - 1;
     
-    if (newCR < 2096 || newCR > 2100) return;
+    if (newCR < 2096 || newCR > 2285) return;
     
     setCarringtonNumber(newCR.toString());
     fetchCoronalData(newCR);
@@ -290,7 +290,7 @@ export default function CoronaViewer() {
             
             <div className="bg-black/50 backdrop-blur p-6 rounded-lg">
               <label className="block text-white text-sm mb-2">
-                Carrington Rotation Number (2096-2100)
+                Carrington Rotation Number (2096-2285)
               </label>
               <input
                 type="number"
@@ -298,7 +298,7 @@ export default function CoronaViewer() {
                 onChange={(e) => setCarringtonNumber(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleFetchClick()}
                 min={2096}
-                max={2100}
+                max={2285}
                 className="w-full px-4 py-2 bg-white/10 text-white rounded border border-white/20 focus:border-blue-500 focus:outline-none mb-4"
                 placeholder="e.g., 2240"
               />
@@ -350,7 +350,7 @@ export default function CoronaViewer() {
               </button>
               <button
                 onClick={() => handleNavigate('next')}
-                disabled={loading || currentCR === null || currentCR >= 2100}
+                disabled={loading || currentCR === null || currentCR >= 2285}
                 className="bg-black/70 backdrop-blur text-white px-4 py-2 rounded text-sm hover:bg-black/90 disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 Next CR →
