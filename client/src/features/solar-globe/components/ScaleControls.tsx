@@ -21,7 +21,7 @@ export default function ScaleControls({
   setFixedMax,
   fitsData
 }: ScaleControlsProps) {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
 
   if (!isOpen) {
     return (
