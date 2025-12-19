@@ -41,16 +41,18 @@ export default function CoronaViewer() {
     setLoading(true);
     setError('');
     
+    const API_BASE = import.meta.env.VITE_API_BASE_URL;
+
     try {
-      const response = await fetch(`http://localhost:3001/api/coronal/${crNumber}`);
-      
+      const response = await fetch(`${API_BASE}/api/coronal/${crNumber}`);
+
       if (!response.ok) {
         if (response.status === 404) {
           throw new Error(`Coronal data for CR ${crNumber} not found. May need to be computed.`);
         }
         throw new Error(`Failed to fetch coronal data: ${response.statusText}`);
       }
-      
+
       const data = await response.json() as CoronalData;
       setCoronalData(data);
       setCurrentCR(crNumber);
@@ -60,6 +62,7 @@ export default function CoronaViewer() {
     } finally {
       setLoading(false);
     }
+
   };
 
   const handleFetchClick = () => {
