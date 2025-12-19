@@ -9,7 +9,7 @@ function CoronalFieldInfo({ currentCR, metadata }: { currentCR: number | null; m
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="absolute top-6 left-6 bg-black/70 backdrop-blur px-3 py-2 rounded text-white pointer-events-auto hover:bg-black/90 transition-colors flex items-center gap-2"
+        className="absolute top-24 left-6 md:top-6 bg-black/70 backdrop-blur px-3 py-2 rounded text-white pointer-events-auto hover:bg-black/90 transition-colors flex items-center gap-2"
       >
         <span className="text-sm font-medium">CR {currentCR} Info</span>
         <ChevronDown size={16} />
@@ -18,7 +18,7 @@ function CoronalFieldInfo({ currentCR, metadata }: { currentCR: number | null; m
   }
 
   return (
-    <div className="absolute top-6 left-6 bg-black/70 backdrop-blur text-white p-4 rounded pointer-events-auto">
+    <div className="absolute top-24 left-6 md:top-6 bg-black/70 backdrop-blur text-white p-4 rounded pointer-events-auto">
       <div className="flex items-center justify-between mb-2">
         <h2 className="text-lg font-semibold">
           CR {currentCR} - Coronal Field
