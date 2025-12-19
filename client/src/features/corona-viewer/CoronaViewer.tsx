@@ -134,8 +134,7 @@ export default function CoronaViewer() {
 
   // Initialize Three.js scene ONCE on mount
   useEffect(() => {
-    // if (!containerRef.current || sceneRef.current) return;
-    if (!containerRef.current || sceneRef.current || !coronalData) return;
+    if (!containerRef.current || sceneRef.current) return;
 
     // Setup scene
     const scene = new THREE.Scene();
@@ -334,8 +333,7 @@ export default function CoronaViewer() {
         }
       }
     };
-  // }, []); // Only run once on mount
-  }, [coronalData]); // Only run when coronalData is available
+  }, []); // Only run once on mount
 
   // Update field lines when coronal data changes
   useEffect(() => {
@@ -408,8 +406,8 @@ export default function CoronaViewer() {
 
   return (
     <div className="w-full h-screen bg-black relative">
-      {/* Container is ALWAYS rendered */}
-      <div ref={containerRef} className="w-full h-full" />
+      {/* Container is only visible when data is loaded */}
+      <div ref={containerRef} className={`w-full h-full ${!coronalData ? 'invisible' : 'visible'}`} />
       
       {/* UI overlay */}
       {!coronalData ? (
