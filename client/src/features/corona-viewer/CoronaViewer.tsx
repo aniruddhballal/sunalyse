@@ -1,5 +1,45 @@
 import { useRef, useEffect, useState } from 'react';
 import * as THREE from 'three';
+import { ChevronDown, ChevronUp } from 'lucide-react';
+
+function CoronalFieldInfo({ currentCR, metadata }: { currentCR: number | null; metadata: CoronalData['metadata'] }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  if (!isOpen) {
+    return (
+      <button
+        onClick={() => setIsOpen(true)}
+        className="absolute top-6 left-6 bg-black/70 backdrop-blur px-3 py-2 rounded text-white pointer-events-auto hover:bg-black/90 transition-colors flex items-center gap-2"
+      >
+        <span className="text-sm font-medium">CR {currentCR} Info</span>
+        <ChevronDown size={16} />
+      </button>
+    );
+  }
+
+  return (
+    <div className="absolute top-6 left-6 bg-black/70 backdrop-blur text-white p-4 rounded pointer-events-auto">
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="text-lg font-semibold">
+          CR {currentCR} - Coronal Field
+        </h2>
+        <button
+          onClick={() => setIsOpen(false)}
+          className="text-gray-400 hover:text-white ml-2"
+        >
+          <ChevronUp size={16} />
+        </button>
+      </div>
+      <p className="text-xs text-gray-300">lmax: {metadata.lmax}</p>
+      <p className="text-xs text-gray-300">
+        Field lines: {metadata.n_field_lines}
+      </p>
+      <p className="text-xs text-gray-300">
+        Source surface: {metadata.r_source} R☉
+      </p>
+    </div>
+  );
+}
 
 interface FieldLine {
   points: [number, number, number][];
@@ -417,18 +457,10 @@ export default function CoronaViewer() {
         </div>
       ) : (
         <>
-          <div className="absolute top-6 left-6 bg-black/70 backdrop-blur text-white p-4 rounded pointer-events-auto">
-            <h2 className="text-lg font-semibold mb-2">
-              CR {currentCR} - Coronal Field
-            </h2>
-            <p className="text-xs text-gray-300">lmax: {coronalData.metadata.lmax}</p>
-            <p className="text-xs text-gray-300">
-              Field lines: {coronalData.metadata.n_field_lines}
-            </p>
-            <p className="text-xs text-gray-300">
-              Source surface: {coronalData.metadata.r_source} R☉
-            </p>
-          </div>
+          <CoronalFieldInfo 
+            currentCR={currentCR}
+            metadata={coronalData.metadata}
+          />
 
           <div className="absolute bottom-6 left-6 flex flex-col gap-2 pointer-events-auto">
             {/* Navigation buttons */}
