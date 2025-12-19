@@ -4,14 +4,14 @@ import fetch from 'node-fetch';
 const router = Router();
 
 // Validate environment variables
-if (!process.env.HF_USER || !process.env.HF_REPO) {
+if (!process.env.HF_USER || !process.env.HF_FITS) {
   throw new Error('HF_USER and HF_REPO must be set');
 }
 
 const HF_USER = process.env.HF_USER;
-const HF_REPO = process.env.HF_REPO;
-const HF_API_FILES = `https://huggingface.co/api/datasets/${HF_USER}/${HF_REPO}/tree/main`;
-const HF_BASE_URL = `https://huggingface.co/datasets/${HF_USER}/${HF_REPO}/resolve/main`;
+const HF_FITS = process.env.HF_FITS;
+const HF_API_FILES = `https://huggingface.co/api/datasets/${HF_USER}/${HF_FITS}/tree/main`;
+const HF_BASE_URL = `https://huggingface.co/datasets/${HF_USER}/${HF_FITS}/resolve/main`;
 
 // List all FITS files dynamically
 router.get('/list', async (req: Request, res: Response) => {
