@@ -204,7 +204,6 @@ export default function ViewerView({
       </div>
 
       <div className="absolute bottom-6 right-6 text-gray-500 text-xs font-light z-20 pointer-events-none">
-        {show2DMap ? 'Viewing 2D Map' : 'Drag to rotate'}
         {showCoronalLines && coronalData && (
           <div className="mt-2 space-y-1">
             <div className="flex items-center gap-2">
