@@ -1,24 +1,39 @@
-// GlobeViewer.tsx (Refactored)
-
 import { useRef, useState } from 'react';
 import type { FITSData } from './fits/types';
+import type { CoronalData } from './hooks/useCoronalFieldLines';
 import { useThreeScene } from './hooks/useThreeScene';
 import { use2DRenderer } from './hooks/use2DRenderer';
 import ScaleControls from './components/ScaleControls';
 
-export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
+interface GlobeViewerProps {
   fitsData: FITSData;
   show2DMap: boolean;
   isRotating: boolean;
-}) {
+  coronalData: CoronalData | null;
+  showCoronalLines: boolean;
+  showOpenLines: boolean;
+  showClosedLines: boolean;
+  showSourceSurface: boolean;
+}
+
+export default function GlobeViewer({ 
+  fitsData, 
+  show2DMap, 
+  isRotating,
+  coronalData,
+  showCoronalLines,
+  showOpenLines,
+  showClosedLines,
+  showSourceSurface
+}: GlobeViewerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvas2DRef = useRef<HTMLCanvasElement | null>(null);
   
   const [useFixedScale, setUseFixedScale] = useState(false);
   const [fixedMin, setFixedMin] = useState('-500');
   const [fixedMax, setFixedMax] = useState('500');
-
-  // Use Three.js hook for 3D rendering
+  
+  // Use Three.js hook for 3D rendering (now with coronal field lines)
   useThreeScene(
     containerRef,
     fitsData,
@@ -26,9 +41,14 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
     isRotating,
     useFixedScale,
     fixedMin,
-    fixedMax
+    fixedMax,
+    coronalData,
+    showCoronalLines,
+    showOpenLines,
+    showClosedLines,
+    showSourceSurface
   );
-
+  
   // Use 2D renderer hook for 2D canvas rendering
   use2DRenderer(
     canvas2DRef,
@@ -38,7 +58,7 @@ export default function GlobeViewer({ fitsData, show2DMap, isRotating }: {
     fixedMin,
     fixedMax
   );
-
+  
   return (
     <>
       <ScaleControls

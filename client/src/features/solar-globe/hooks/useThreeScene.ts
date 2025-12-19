@@ -1,6 +1,7 @@
 import { useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import type { FITSData } from '../fits/types';
+import type { CoronalData } from './useCoronalFieldLines';
 import { createDataTexture, createShaderMaterial, createTransitionShaderMaterial } from '../utils/textureCreation';
 
 interface ThreeSceneRef {
@@ -8,6 +9,8 @@ interface ThreeSceneRef {
   camera: THREE.PerspectiveCamera;
   renderer: THREE.WebGLRenderer;
   sphere: THREE.Mesh;
+  fieldLineGroup: THREE.Group;
+  sourceSurface: THREE.Mesh;
   animationId: number;
   isDragging: boolean;
   pausedForTransition: boolean;
@@ -17,6 +20,8 @@ interface TransitionRef {
   isTransitioning: boolean;
   startTime: number;
   duration: number;
+  oldFieldLines?: any[];
+  newFieldLines?: any[];
 }
 
 const easeInOutCubic = (t: number): number => {
@@ -30,7 +35,12 @@ export const useThreeScene = (
   isRotating: boolean,
   useFixedScale: boolean,
   fixedMin: string,
-  fixedMax: string
+  fixedMax: string,
+  coronalData: CoronalData | null,
+  showCoronalLines: boolean,
+  showOpenLines: boolean,
+  showClosedLines: boolean,
+  showSourceSurface: boolean
 ) => {
   const sceneRef = useRef<ThreeSceneRef | null>(null);
   const currentFitsDataRef = useRef<FITSData | null>(null);
@@ -71,6 +81,22 @@ export const useThreeScene = (
     const material = createShaderMaterial(dataTexture);
     const sphere = new THREE.Mesh(geometry, material);
     scene.add(sphere);
+    
+    // Create field line group for coronal field lines
+    const fieldLineGroup = new THREE.Group();
+    scene.add(fieldLineGroup);
+    
+    // Create source surface sphere (initially hidden)
+    const sourceSurfaceGeometry = new THREE.SphereGeometry(2.5, 64, 64);
+    const sourceSurfaceMaterial = new THREE.MeshBasicMaterial({
+      color: 0x4444ff,
+      transparent: true,
+      opacity: 0.05,
+      wireframe: true
+    });
+    const sourceSurface = new THREE.Mesh(sourceSurfaceGeometry, sourceSurfaceMaterial);
+    sourceSurface.visible = false;
+    scene.add(sourceSurface);
     
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
     scene.add(ambientLight);
@@ -126,6 +152,12 @@ export const useThreeScene = (
       sphere.rotation.y += deltaX * 0.01;
       sphere.rotation.x += deltaY * 0.01;
       
+      // Rotate field lines and source surface with the sphere
+      fieldLineGroup.rotation.y = sphere.rotation.y;
+      fieldLineGroup.rotation.x = sphere.rotation.x;
+      sourceSurface.rotation.y = sphere.rotation.y;
+      sourceSurface.rotation.x = sphere.rotation.x;
+      
       previousMousePosition = { x: e.clientX, y: e.clientY };
     };
     
@@ -167,6 +199,12 @@ export const useThreeScene = (
       
       sphere.rotation.y += deltaX * 0.01;
       sphere.rotation.x += deltaY * 0.01;
+      
+      // Rotate field lines and source surface with the sphere
+      fieldLineGroup.rotation.y = sphere.rotation.y;
+      fieldLineGroup.rotation.x = sphere.rotation.x;
+      sourceSurface.rotation.y = sphere.rotation.y;
+      sourceSurface.rotation.x = sphere.rotation.x;
       
       previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     };
@@ -224,6 +262,11 @@ export const useThreeScene = (
       
       if (shouldRotate) {
         sphere.rotation.y += 0.0005;
+        // Rotate field lines and source surface with the sphere
+        fieldLineGroup.rotation.y = sphere.rotation.y;
+        fieldLineGroup.rotation.x = sphere.rotation.x;
+        sourceSurface.rotation.y = sphere.rotation.y;
+        sourceSurface.rotation.x = sphere.rotation.x;
       }
       
       renderer.render(scene, camera);
@@ -240,6 +283,8 @@ export const useThreeScene = (
       camera, 
       renderer, 
       sphere, 
+      fieldLineGroup,
+      sourceSurface,
       animationId: 0, 
       isDragging: false,
       pausedForTransition: false
@@ -376,4 +421,87 @@ export const useThreeScene = (
       }
     }
   }, [useFixedScale, fixedMin, fixedMax]);
+
+  // Handle coronal field lines updates
+  useEffect(() => {
+    if (!sceneRef.current || !coronalData) return;
+
+    const { fieldLineGroup, sourceSurface } = sceneRef.current;
+
+    // Clear existing field lines
+    while (fieldLineGroup.children.length > 0) {
+      const child = fieldLineGroup.children[0];
+      if (child instanceof THREE.Line) {
+        child.geometry.dispose();
+        if (Array.isArray(child.material)) {
+          child.material.forEach(m => m.dispose());
+        } else {
+          child.material.dispose();
+        }
+      }
+      fieldLineGroup.remove(child);
+    }
+
+    // Update source surface radius
+    sourceSurface.geometry.dispose();
+    sourceSurface.geometry = new THREE.SphereGeometry(coronalData.metadata.r_source, 64, 64);
+
+    // Add new field lines
+    coronalData.fieldLines.forEach((fieldLine) => {
+      if (fieldLine.points.length < 2) return;
+
+      const points = fieldLine.points.map(
+        ([x, y, z]) => new THREE.Vector3(x, y, z)
+      );
+
+      const geometry = new THREE.BufferGeometry().setFromPoints(points);
+
+      // Color based on polarity
+      const color = fieldLine.polarity === 'open' 
+        ? new THREE.Color(0x00ff00)  // Green for open
+        : new THREE.Color(0xff0000); // Red for closed
+
+      const material = new THREE.LineBasicMaterial({
+        color: color,
+        transparent: true,
+        opacity: 0.6,
+        linewidth: 1
+      });
+
+      const line = new THREE.Line(geometry, material);
+      line.userData = { 
+        polarity: fieldLine.polarity,
+        fieldLineData: fieldLine
+      };
+      line.visible = showCoronalLines && (fieldLine.polarity === 'open' ? showOpenLines : showClosedLines);
+      
+      // Match rotation with sphere
+      line.rotation.y = sceneRef.current!.sphere.rotation.y;
+      line.rotation.x = sceneRef.current!.sphere.rotation.x;
+      
+      fieldLineGroup.add(line);
+    });
+
+  }, [coronalData]);
+
+  // Handle field line visibility changes
+  useEffect(() => {
+    if (!sceneRef.current) return;
+
+    sceneRef.current.fieldLineGroup.traverse((obj) => {
+      if (obj instanceof THREE.Line && obj.userData.polarity) {
+        if (obj.userData.polarity === 'open') {
+          obj.visible = showCoronalLines && showOpenLines;
+        } else if (obj.userData.polarity === 'closed') {
+          obj.visible = showCoronalLines && showClosedLines;
+        }
+      }
+    });
+  }, [showCoronalLines, showOpenLines, showClosedLines]);
+
+  // Handle source surface visibility
+  useEffect(() => {
+    if (!sceneRef.current) return;
+    sceneRef.current.sourceSurface.visible = showCoronalLines && showSourceSurface;
+  }, [showCoronalLines, showSourceSurface]);
 };
