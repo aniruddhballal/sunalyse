@@ -20,7 +20,7 @@ export default function ViewerView({
   onNavigate,
   isNavigating = false
 }: ViewerViewProps) {
-  const [showDetails, setShowDetails] = useState(true);
+  const [showDetails, setShowDetails] = useState(false);
   const [show2DMap, setShow2DMap] = useState(false);
   const [isRotating, setIsRotating] = useState(true);
 
