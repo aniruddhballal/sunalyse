@@ -4,6 +4,7 @@ import type { CoronalData } from './hooks/useCoronalFieldLines';
 import { useThreeScene } from './hooks/useThreeScene';
 import { use2DRenderer } from './hooks/use2DRenderer';
 import ScaleControls from './components/ScaleControls';
+import CoronalControls from './components/CoronalControls';
 
 interface GlobeViewerProps {
   fitsData: FITSData;
@@ -14,6 +15,14 @@ interface GlobeViewerProps {
   showOpenLines: boolean;
   showClosedLines: boolean;
   showSourceSurface: boolean;
+  currentCarringtonNumber?: number;
+  isLoadingCoronal: boolean;
+  coronalError: string;
+  onToggleCoronalLines: () => void;
+  onFetchCoronalData: (crNumber: number) => void;
+  setShowOpenLines: (show: boolean) => void;
+  setShowClosedLines: (show: boolean) => void;
+  setShowSourceSurface: (show: boolean) => void;
 }
 
 export default function GlobeViewer({ 
@@ -24,7 +33,15 @@ export default function GlobeViewer({
   showCoronalLines,
   showOpenLines,
   showClosedLines,
-  showSourceSurface
+  showSourceSurface,
+  currentCarringtonNumber,
+  isLoadingCoronal,
+  coronalError,
+  onToggleCoronalLines,
+  onFetchCoronalData,
+  setShowOpenLines,
+  setShowClosedLines,
+  setShowSourceSurface
 }: GlobeViewerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvas2DRef = useRef<HTMLCanvasElement | null>(null);
@@ -69,6 +86,22 @@ export default function GlobeViewer({
         fixedMax={fixedMax}
         setFixedMax={setFixedMax}
         fitsData={fitsData}
+      />
+
+      <CoronalControls
+        coronalData={coronalData}
+        isLoadingCoronal={isLoadingCoronal}
+        coronalError={coronalError}
+        showCoronalLines={showCoronalLines}
+        showOpenLines={showOpenLines}
+        showClosedLines={showClosedLines}
+        showSourceSurface={showSourceSurface}
+        onToggleCoronalLines={onToggleCoronalLines}
+        onFetchCoronalData={onFetchCoronalData}
+        setShowOpenLines={setShowOpenLines}
+        setShowClosedLines={setShowClosedLines}
+        setShowSourceSurface={setShowSourceSurface}
+        currentCarringtonNumber={currentCarringtonNumber}
       />
       
       <div 

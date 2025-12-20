@@ -48,21 +48,10 @@ export default function ViewerView({
   const [showDetails, setShowDetails] = useState(false);
   const [show2DMap, setShow2DMap] = useState(false);
   const [isRotating, setIsRotating] = useState(true);
-  const [showCoronalControls, setShowCoronalControls] = useState(false);
 
   const handleNavigate = (direction: 'next' | 'prev') => {
     if (onNavigate) {
       onNavigate(direction);
-    }
-  };
-
-  const handleCoronalToggle = () => {
-    if (!coronalData && !isLoadingCoronal && currentCarringtonNumber) {
-      // Fetch coronal data if not already loaded
-      onFetchCoronalData(currentCarringtonNumber);
-    } else {
-      // Just toggle visibility
-      onToggleCoronalLines();
     }
   };
 
@@ -79,6 +68,14 @@ export default function ViewerView({
         showOpenLines={showOpenLines}
         showClosedLines={showClosedLines}
         showSourceSurface={showSourceSurface}
+        currentCarringtonNumber={currentCarringtonNumber}
+        isLoadingCoronal={isLoadingCoronal}
+        coronalError={coronalError}
+        onToggleCoronalLines={onToggleCoronalLines}
+        onFetchCoronalData={onFetchCoronalData}
+        setShowOpenLines={setShowOpenLines}
+        setShowClosedLines={setShowClosedLines}
+        setShowSourceSurface={setShowSourceSurface}
       />
 
       <div 
@@ -120,71 +117,6 @@ export default function ViewerView({
               {isRotating ? 'Pause' : 'Resume'}
             </button>
           </div>
-
-          {/* Coronal Field Lines Toggle */}
-          <button
-            onClick={handleCoronalToggle}
-            disabled={isLoadingCoronal}
-            className={`text-white text-xs font-light transition-colors backdrop-blur px-3 py-2.5 rounded ${
-              showCoronalLines 
-                ? 'bg-green-600 hover:bg-green-700' 
-                : 'bg-black/70 hover:text-gray-300'
-            } disabled:opacity-50 disabled:cursor-not-allowed`}
-          >
-            {isLoadingCoronal 
-              ? 'Loading Coronal...' 
-              : showCoronalLines 
-                ? '✓ Coronal Field Lines' 
-                : 'Show Coronal Field Lines'}
-          </button>
-
-          {/* Coronal Controls - Show when coronal lines are visible */}
-          {showCoronalLines && coronalData && (
-            <>
-              <button
-                onClick={() => setShowCoronalControls(!showCoronalControls)}
-                className="text-white text-xs font-light hover:text-gray-300 transition-colors bg-black/70 backdrop-blur px-3 py-2.5 rounded"
-              >
-                {showCoronalControls ? 'Hide' : 'Show'} Coronal Options
-              </button>
-
-              {showCoronalControls && (
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => setShowOpenLines(!showOpenLines)}
-                    className={`text-white text-xs font-light transition-colors backdrop-blur px-3 py-2.5 rounded ${
-                      showOpenLines ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-600 hover:bg-gray-700'
-                    }`}
-                  >
-                    Open Lines
-                  </button>
-                  <button
-                    onClick={() => setShowClosedLines(!showClosedLines)}
-                    className={`text-white text-xs font-light transition-colors backdrop-blur px-3 py-2.5 rounded ${
-                      showClosedLines ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-600 hover:bg-gray-700'
-                    }`}
-                  >
-                    Closed Lines
-                  </button>
-                  <button
-                    onClick={() => setShowSourceSurface(!showSourceSurface)}
-                    className={`col-span-2 text-white text-xs font-light transition-colors backdrop-blur px-3 py-2.5 rounded ${
-                      showSourceSurface ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-600 hover:bg-gray-700'
-                    }`}
-                  >
-                    Source Surface
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-
-          {/* Error display for coronal data */}
-          {coronalError && (
-            <div className="text-red-400 text-xs bg-red-900/30 backdrop-blur px-3 py-2 rounded">
-              {coronalError}
-            </div>
-          )}
           
           <button
             onClick={onReset}
