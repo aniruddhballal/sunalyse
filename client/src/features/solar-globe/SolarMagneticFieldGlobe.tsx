@@ -8,6 +8,7 @@ import { useCoronalFieldLines } from './hooks/useCoronalFieldLines';
 export default function SolarMagneticFieldGlobe() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const shouldAutoFetchCoronalRef = useRef(false);
+  const pendingCoronalFetchRef = useRef<number | null>(null);
   
   const {
     uploadProgress,
@@ -64,6 +65,7 @@ export default function SolarMagneticFieldGlobe() {
       resetCarrington();
       clearCoronalData();
       shouldAutoFetchCoronalRef.current = false;
+      pendingCoronalFetchRef.current = null;
       handleFileSelect(file);
     }
   };
@@ -75,6 +77,7 @@ export default function SolarMagneticFieldGlobe() {
     }
     clearCoronalData();
     shouldAutoFetchCoronalRef.current = false;
+    pendingCoronalFetchRef.current = null;
     await fetchCarringtonData(
       rotationNum,
       false,
@@ -93,9 +96,11 @@ export default function SolarMagneticFieldGlobe() {
       ? currentCRNumber + 1 
       : currentCRNumber - 1;
     
-    // If coronal data is currently loaded, mark to auto-fetch for new CR
+    // If coronal data is currently loaded, fetch it simultaneously with FITS data
     if (coronalData !== null) {
-      shouldAutoFetchCoronalRef.current = true;
+      // Start fetching coronal data immediately
+      fetchCoronalData(newCRNumber);
+      shouldAutoFetchCoronalRef.current = false;
     }
     
     await fetchCarringtonData(
@@ -122,6 +127,7 @@ export default function SolarMagneticFieldGlobe() {
     resetCarrington();
     clearCoronalData();
     shouldAutoFetchCoronalRef.current = false;
+    pendingCoronalFetchRef.current = null;
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
