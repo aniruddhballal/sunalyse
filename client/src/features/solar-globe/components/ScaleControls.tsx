@@ -60,7 +60,7 @@ export default function ScaleControls({
             onChange={(e) => setUseFixedScale(e.target.checked)}
             className="w-4 h-4"
           />
-          <span className="text-sm font-light">Fixed Scale Mode</span>
+          <span className="text-sm font-light text-white">Fixed Scale Mode</span>
         </label>
         
         {useFixedScale && (
@@ -71,7 +71,7 @@ export default function ScaleControls({
                 type="number"
                 value={fixedMin}
                 onChange={(e) => setFixedMin(e.target.value)}
-                className="w-24 px-2 py-1 bg-gray-800 border border-gray-600 rounded text-sm"
+                className="w-24 px-2 py-1 bg-gray-800 border border-gray-600 rounded text-sm text-white"
                 step="100"
               />
             </div>
@@ -81,7 +81,7 @@ export default function ScaleControls({
                 type="number"
                 value={fixedMax}
                 onChange={(e) => setFixedMax(e.target.value)}
-                className="w-24 px-2 py-1 bg-gray-800 border border-gray-600 rounded text-sm"
+                className="w-24 px-2 py-1 bg-gray-800 border border-gray-600 rounded text-sm text-white"
                 step="100"
               />
             </div>
