@@ -1,3 +1,9 @@
+"""
+PFSS lmax Convergence Analysis
+Designed to run on Kaggle notebooks.
+Requires: astropy, scipy, matplotlib, seaborn, tqdm, IPython
+"""
+
 import numpy as np
 from scipy.special import sph_harm
 from astropy.io import fits
@@ -537,6 +543,9 @@ def main():
     print("  • convergence_data.json")
     print("="*80 + "\n")
     
+
+    # This code is meant for Kaggle - IPython is available there
+
     # Display results inline
     from IPython.display import Image, display
     print("="*80)
