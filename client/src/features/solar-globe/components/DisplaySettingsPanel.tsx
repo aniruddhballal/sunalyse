@@ -261,7 +261,7 @@ export default function DisplaySettingsPanel({
             {isLoadingCoronal 
               ? 'Loading Coronal Data...' 
               : showCoronalLines 
-                ? '✓ Field Lines Active' 
+                ? 'Field Lines Active' 
                 : 'Load Field Lines'}
           </button>
 
