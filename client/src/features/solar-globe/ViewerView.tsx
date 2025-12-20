@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import GlobeViewer from './GlobeViewer';
-import DetailsPanel from './DetailsPanel';
+import DisplaySettingsPanel from './components/DisplaySettingsPanel';
 import type { FITSData } from './fits/types';
 import type { CoronalData } from './hooks/useCoronalFieldLines';
 
@@ -45,9 +45,11 @@ export default function ViewerView({
   setShowClosedLines,
   setShowSourceSurface
 }: ViewerViewProps) {
-  const [showDetails, setShowDetails] = useState(false);
   const [show2DMap, setShow2DMap] = useState(false);
   const [isRotating, setIsRotating] = useState(true);
+  const [useFixedScale, setUseFixedScale] = useState(false);
+  const [fixedMin, setFixedMin] = useState('-500');
+  const [fixedMax, setFixedMax] = useState('500');
 
   const handleNavigate = (direction: 'next' | 'prev') => {
     if (onNavigate) {
@@ -68,14 +70,34 @@ export default function ViewerView({
         showOpenLines={showOpenLines}
         showClosedLines={showClosedLines}
         showSourceSurface={showSourceSurface}
-        currentCarringtonNumber={currentCarringtonNumber}
+        useFixedScale={useFixedScale}
+        fixedMin={parseFloat(fixedMin)}
+        fixedMax={parseFloat(fixedMax)}
+      />
+
+      {/* Unified Display Settings Panel */}
+      <DisplaySettingsPanel
+        useFixedScale={useFixedScale}
+        setUseFixedScale={setUseFixedScale}
+        fixedMin={fixedMin}
+        setFixedMin={setFixedMin}
+        fixedMax={fixedMax}
+        setFixedMax={setFixedMax}
+        fitsData={fitsData}
+        coronalData={coronalData}
         isLoadingCoronal={isLoadingCoronal}
         coronalError={coronalError}
+        showCoronalLines={showCoronalLines}
+        showOpenLines={showOpenLines}
+        showClosedLines={showClosedLines}
+        showSourceSurface={showSourceSurface}
         onToggleCoronalLines={onToggleCoronalLines}
         onFetchCoronalData={onFetchCoronalData}
         setShowOpenLines={setShowOpenLines}
         setShowClosedLines={setShowClosedLines}
         setShowSourceSurface={setShowSourceSurface}
+        currentCarringtonNumber={currentCarringtonNumber}
+        fileName={fileName}
       />
 
       <div 
@@ -141,13 +163,6 @@ export default function ViewerView({
           </div>
         )}
       </div>
-
-      <DetailsPanel
-        fitsData={fitsData}
-        fileName={fileName}
-        showDetails={showDetails}
-        setShowDetails={setShowDetails}
-      />
     </>
   );
 }

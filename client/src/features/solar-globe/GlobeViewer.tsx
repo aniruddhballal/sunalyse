@@ -1,10 +1,8 @@
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
 import type { FITSData } from './fits/types';
 import type { CoronalData } from './hooks/useCoronalFieldLines';
 import { useThreeScene } from './hooks/useThreeScene';
 import { use2DRenderer } from './hooks/use2DRenderer';
-import Photosphere from './components/Photosphere';
-import Corona from './components/Corona';
 
 interface GlobeViewerProps {
   fitsData: FITSData;
@@ -15,14 +13,9 @@ interface GlobeViewerProps {
   showOpenLines: boolean;
   showClosedLines: boolean;
   showSourceSurface: boolean;
-  currentCarringtonNumber?: number;
-  isLoadingCoronal: boolean;
-  coronalError: string;
-  onToggleCoronalLines: () => void;
-  onFetchCoronalData: (crNumber: number) => void;
-  setShowOpenLines: (show: boolean) => void;
-  setShowClosedLines: (show: boolean) => void;
-  setShowSourceSurface: (show: boolean) => void;
+  useFixedScale: boolean;
+  fixedMin: number;
+  fixedMax: number;
 }
 
 export default function GlobeViewer({ 
@@ -34,21 +27,12 @@ export default function GlobeViewer({
   showOpenLines,
   showClosedLines,
   showSourceSurface,
-  currentCarringtonNumber,
-  isLoadingCoronal,
-  coronalError,
-  onToggleCoronalLines,
-  onFetchCoronalData,
-  setShowOpenLines,
-  setShowClosedLines,
-  setShowSourceSurface
+  useFixedScale,
+  fixedMin,
+  fixedMax
 }: GlobeViewerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvas2DRef = useRef<HTMLCanvasElement | null>(null);
-  
-  const [useFixedScale, setUseFixedScale] = useState(false);
-  const [fixedMin, setFixedMin] = useState('-500');
-  const [fixedMax, setFixedMax] = useState('500');
   
   // Use Three.js hook for 3D rendering (now with coronal field lines)
   useThreeScene(
@@ -57,8 +41,8 @@ export default function GlobeViewer({
     show2DMap,
     isRotating,
     useFixedScale,
-    fixedMin,
-    fixedMax,
+    String(fixedMin),
+    String(fixedMax),
     coronalData,
     showCoronalLines,
     showOpenLines,
@@ -72,38 +56,12 @@ export default function GlobeViewer({
     fitsData,
     show2DMap,
     useFixedScale,
-    fixedMin,
-    fixedMax
+    String(fixedMin),
+    String(fixedMax)
   );
   
   return (
     <>
-      <Photosphere
-        useFixedScale={useFixedScale}
-        setUseFixedScale={setUseFixedScale}
-        fixedMin={fixedMin}
-        setFixedMin={setFixedMin}
-        fixedMax={fixedMax}
-        setFixedMax={setFixedMax}
-        fitsData={fitsData}
-      />
-
-      <Corona
-        coronalData={coronalData}
-        isLoadingCoronal={isLoadingCoronal}
-        coronalError={coronalError}
-        showCoronalLines={showCoronalLines}
-        showOpenLines={showOpenLines}
-        showClosedLines={showClosedLines}
-        showSourceSurface={showSourceSurface}
-        onToggleCoronalLines={onToggleCoronalLines}
-        onFetchCoronalData={onFetchCoronalData}
-        setShowOpenLines={setShowOpenLines}
-        setShowClosedLines={setShowClosedLines}
-        setShowSourceSurface={setShowSourceSurface}
-        currentCarringtonNumber={currentCarringtonNumber}
-      />
-      
       <div 
         ref={containerRef}
         className={`absolute inset-0 transition-opacity duration-300 ${show2DMap ? 'hidden' : 'block'}`}
