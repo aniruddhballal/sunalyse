@@ -1,5 +1,5 @@
 import { useRef, useEffect } from 'react';
-import UploadView from './UploadView';
+import InputView from './InputView';
 import ViewerView from './ViewerView';
 import { useFitsData } from './hooks/useFitsData';
 import { useCarringtonData } from './hooks/useCarringtonData';
@@ -112,7 +112,7 @@ export default function SolarMagneticFieldGlobe() {
   return (
     <div className="relative w-full h-screen bg-black overflow-hidden" style={{ minHeight: '100dvh' }}>
       {!fitsData ? (
-        <UploadView
+        <InputView
           isFetching={isFetching}
           isProcessing={isProcessing}
           dataSource={dataSource}

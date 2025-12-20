@@ -1,4 +1,4 @@
-interface UploadViewProps {
+interface InputViewProps {
   isFetching: boolean;
   isProcessing: boolean;
   dataSource: string;
@@ -8,7 +8,7 @@ interface UploadViewProps {
   fetchError: string;
 }
 
-export default function UploadView({
+export default function InputView({
   isFetching,
   isProcessing,
   dataSource,
@@ -16,7 +16,7 @@ export default function UploadView({
   onCarringtonChange,
   onCarringtonFetch,
   fetchError
-}: UploadViewProps) {
+}: InputViewProps) {
   return (
     <div className="absolute inset-0 flex items-center justify-center bg-black">
       <div className="text-center space-y-8 max-w-md px-6">
