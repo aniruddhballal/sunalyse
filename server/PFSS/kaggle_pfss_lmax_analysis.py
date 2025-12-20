@@ -399,9 +399,9 @@ PFSS LMAX CONVERGENCE ANALYSIS - RECOMMENDATION REPORT
 
 ANALYSIS SUMMARY:
 -----------------
-• Analyzed {len(all_results)} Carrington Rotations: {[r['cr'] for r in all_results]}
-• Tested lmax values: {self.lmax_values}
-• Metrics: Reconstruction error, power spectra, convergence rates
+- Analyzed {len(all_results)} Carrington Rotations: {[r['cr'] for r in all_results]}
+- Tested lmax values: {self.lmax_values}
+- Metrics: Reconstruction error, power spectra, convergence rates
 
 RECONSTRUCTION ERROR BY LMAX:
 ------------------------------
@@ -442,9 +442,9 @@ JUSTIFICATION:
 
 ALTERNATIVES:
 -------------
-• For FAST processing (low detail):     lmax = {self.lmax_values[1]} ({100*avg_rel_errors[1]:.2f}% error)
-• For BALANCED performance (recommended): lmax = {optimal_lmax} ({100*avg_rel_errors[optimal_idx]:.2f}% error)
-• For HIGH ACCURACY (slow):              lmax = {self.lmax_values[-2]} ({100*avg_rel_errors[-2]:.2f}% error)
+- For FAST processing (low detail):     lmax = {self.lmax_values[1]} ({100*avg_rel_errors[1]:.2f}% error)
+- For BALANCED performance (recommended): lmax = {optimal_lmax} ({100*avg_rel_errors[optimal_idx]:.2f}% error)
+- For HIGH ACCURACY (slow):              lmax = {self.lmax_values[-2]} ({100*avg_rel_errors[-2]:.2f}% error)
 
 {'='*80}
 """
@@ -479,44 +479,76 @@ ALTERNATIVES:
         print(f"✓ Saved data to: {data_path}")
 
 
+# ===================================================================
+# MAIN FUNCTION - MODIFIED FOR KAGGLE
+# ===================================================================
 def main():
     """
-    Main execution function for lmax convergence analysis.
+    Main execution for Kaggle with aniruddhballal/fits-files dataset
     """
+    import os
+    
     print("\n" + "="*80)
-    print("PFSS LMAX CONVERGENCE ANALYZER")
+    print("PFSS LMAX CONVERGENCE ANALYZER - KAGGLE")
     print("="*80 + "\n")
+    
+    # Kaggle dataset path
+    fits_dir = "/kaggle/input/alms-and-fits/fits files"
+    
+    # Verify files exist
+    if os.path.exists(fits_dir):
+        fits_files = [f for f in os.listdir(fits_dir) if f.endswith('.fits')]
+        print(f"✓ Found {len(fits_files)} FITS files in {fits_dir}")
+        print(f"  Sample files: {fits_files[:3]}\n")
+    else:
+        print(f"❌ ERROR: Directory not found: {fits_dir}")
+        print("   Make sure you've added the 'fits-files' dataset to your notebook!")
+        return
     
     # Initialize analyzer
     analyzer = PFSSConvergenceAnalyzer(r_source=2.5)
     
-    # Run analysis on multiple CRs
-    all_results = analyzer.analyze_all_crs(fits_dir="fits_files")
+    # Run analysis
+    all_results = analyzer.analyze_all_crs(fits_dir=fits_dir)
     
     if not all_results:
         print("❌ No results obtained. Check your FITS files.")
         return
     
-    # Generate visualizations
+    # Generate visualizations (Kaggle output directory)
+    output_dir = "/kaggle/working/lmax_analysis"
+    os.makedirs(output_dir, exist_ok=True)
+    
     print("\n" + "="*80)
     print("GENERATING VISUALIZATIONS")
     print("="*80 + "\n")
     
-    analyzer.plot_convergence_analysis(all_results, output_dir="lmax_analysis")
-    
-    # Generate recommendation report
-    analyzer.generate_recommendation_report(all_results, output_dir="lmax_analysis")
+    analyzer.plot_convergence_analysis(all_results, output_dir=output_dir)
+    analyzer.generate_recommendation_report(all_results, output_dir=output_dir)
     
     print("\n" + "="*80)
     print("✓ ANALYSIS COMPLETE!")
     print("="*80)
-    print("\nOutput files saved in: lmax_analysis/")
-    print("  • convergence_overview.png      - Main convergence plots")
-    print("  • reconstruction_comparison.png - Visual quality comparison")
-    print("  • summary_statistics.png        - Statistical summary")
-    print("  • lmax_recommendation.txt       - Detailed recommendation report")
-    print("  • convergence_data.json         - Raw numerical data")
+    print(f"\nOutput files saved in: {output_dir}/")
+    print("  • convergence_overview.png")
+    print("  • reconstruction_comparison.png")
+    print("  • summary_statistics.png")
+    print("  • lmax_recommendation.txt")
+    print("  • convergence_data.json")
     print("="*80 + "\n")
+    
+    # Display results inline
+    from IPython.display import Image, display
+    print("="*80)
+    print("RESULTS PREVIEW")
+    print("="*80 + "\n")
+    
+    for img in ['convergence_overview.png', 'reconstruction_comparison.png', 
+                'summary_statistics.png']:
+        img_path = f"{output_dir}/{img}"
+        if os.path.exists(img_path):
+            print(f"\n{img}:")
+            display(Image(filename=img_path, width=1200))
 
 
 if __name__ == "__main__":
