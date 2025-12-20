@@ -10,11 +10,12 @@ interface ThreeSceneRef {
   renderer: THREE.WebGLRenderer;
   sphere: THREE.Mesh;
   fieldLineGroup: THREE.Group;
-  oldFieldLineGroup: THREE.Group; // NEW: for transitioning field lines
+  oldFieldLineGroup: THREE.Group;
   sourceSurface: THREE.Mesh;
   animationId: number;
   isDragging: boolean;
   pausedForTransition: boolean;
+  cameraDistance: number; // Track current zoom level
 }
 
 interface TransitionRef {
@@ -77,7 +78,7 @@ export const useThreeScene = (
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x000000);
     
-    const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
+    const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 10000);
     camera.position.z = 3;
     
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -95,7 +96,7 @@ export const useThreeScene = (
     const fieldLineGroup = new THREE.Group();
     scene.add(fieldLineGroup);
     
-    // NEW: Create old field line group for transitions
+    // Create old field line group for transitions
     const oldFieldLineGroup = new THREE.Group();
     scene.add(oldFieldLineGroup);
     
@@ -120,6 +121,10 @@ export const useThreeScene = (
     
     let isDragging = false;
     let previousMousePosition = { x: 0, y: 0 };
+    let cameraDistance = 3; // Initial camera distance
+    
+    const MIN_DISTANCE = 1.5; // Minimum zoom (closest)
+    const MAX_DISTANCE = 500; // Maximum zoom (farthest) - allows sun to become a tiny dot
     
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
@@ -140,6 +145,38 @@ export const useThreeScene = (
       } else {
         renderer.domElement.style.cursor = 'default';
       }
+    };
+    
+    // Zoom function
+    const handleZoom = (delta: number) => {
+      const zoomSpeed = 0.1;
+      cameraDistance += delta * zoomSpeed;
+      cameraDistance = Math.max(MIN_DISTANCE, Math.min(MAX_DISTANCE, cameraDistance));
+      
+      // Update camera position
+      const direction = new THREE.Vector3();
+      camera.getWorldDirection(direction);
+      const position = direction.multiplyScalar(-cameraDistance);
+      camera.position.copy(position);
+      
+      if (sceneRef.current) {
+        sceneRef.current.cameraDistance = cameraDistance;
+      }
+    };
+    
+    // Mouse wheel zoom
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      handleZoom(e.deltaY * 0.01);
+    };
+    
+    // Touch pinch zoom
+    let lastTouchDistance = 0;
+    
+    const getTouchDistance = (touches: TouchList): number => {
+      const dx = touches[0].clientX - touches[1].clientX;
+      const dy = touches[0].clientY - touches[1].clientY;
+      return Math.sqrt(dx * dx + dy * dy);
     };
     
     const onMouseDown = (e: MouseEvent) => {
@@ -193,7 +230,11 @@ export const useThreeScene = (
         return;
       }
       
-      if (e.touches.length === 1) {
+      if (e.touches.length === 2) {
+        // Pinch zoom
+        touchStartedOnCanvas = true;
+        lastTouchDistance = getTouchDistance(e.touches);
+      } else if (e.touches.length === 1) {
         if (isClickOnSphere(e.touches[0].clientX, e.touches[0].clientY)) {
           touchStartedOnCanvas = true;
           isDragging = true;
@@ -206,24 +247,34 @@ export const useThreeScene = (
     };
     
     const onTouchMove = (e: TouchEvent) => {
-      if (!touchStartedOnCanvas || !isDragging || e.touches.length !== 1) return;
+      if (!touchStartedOnCanvas) return;
       
-      e.preventDefault();
-      const deltaX = e.touches[0].clientX - previousMousePosition.x;
-      const deltaY = e.touches[0].clientY - previousMousePosition.y;
-      
-      sphere.rotation.y += deltaX * 0.01;
-      sphere.rotation.x += deltaY * 0.01;
-      
-      // Rotate field lines and source surface with the sphere
-      fieldLineGroup.rotation.y = sphere.rotation.y;
-      fieldLineGroup.rotation.x = sphere.rotation.x;
-      oldFieldLineGroup.rotation.y = sphere.rotation.y;
-      oldFieldLineGroup.rotation.x = sphere.rotation.x;
-      sourceSurface.rotation.y = sphere.rotation.y;
-      sourceSurface.rotation.x = sphere.rotation.x;
-      
-      previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      if (e.touches.length === 2) {
+        // Pinch zoom
+        e.preventDefault();
+        const currentDistance = getTouchDistance(e.touches);
+        const delta = lastTouchDistance - currentDistance;
+        handleZoom(delta * 0.1);
+        lastTouchDistance = currentDistance;
+      } else if (isDragging && e.touches.length === 1) {
+        // Rotation
+        e.preventDefault();
+        const deltaX = e.touches[0].clientX - previousMousePosition.x;
+        const deltaY = e.touches[0].clientY - previousMousePosition.y;
+        
+        sphere.rotation.y += deltaX * 0.01;
+        sphere.rotation.x += deltaY * 0.01;
+        
+        // Rotate field lines and source surface with the sphere
+        fieldLineGroup.rotation.y = sphere.rotation.y;
+        fieldLineGroup.rotation.x = sphere.rotation.x;
+        oldFieldLineGroup.rotation.y = sphere.rotation.y;
+        oldFieldLineGroup.rotation.x = sphere.rotation.x;
+        sourceSurface.rotation.y = sphere.rotation.y;
+        sourceSurface.rotation.x = sphere.rotation.x;
+        
+        previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      }
     };
     
     const onTouchEnd = () => {
@@ -238,6 +289,7 @@ export const useThreeScene = (
     renderer.domElement.addEventListener('mousemove', onMouseMove);
     renderer.domElement.addEventListener('mouseup', onMouseUp);
     renderer.domElement.addEventListener('mouseleave', onMouseUp);
+    renderer.domElement.addEventListener('wheel', onWheel, { passive: false });
     renderer.domElement.addEventListener('touchstart', onTouchStart, { passive: true });
     renderer.domElement.addEventListener('touchmove', onTouchMove, { passive: false });
     renderer.domElement.addEventListener('touchend', onTouchEnd);
@@ -274,7 +326,7 @@ export const useThreeScene = (
         }
       }
       
-      // NEW: Handle field line transition
+      // Handle field line transition
       if (fieldLineTransitionRef.current?.isTransitioning && sceneRef.current) {
         const elapsed = Date.now() - fieldLineTransitionRef.current.startTime;
         const rawProgress = Math.min(elapsed / fieldLineTransitionRef.current.duration, 1);
@@ -347,7 +399,8 @@ export const useThreeScene = (
       sourceSurface,
       animationId: 0, 
       isDragging: false,
-      pausedForTransition: false
+      pausedForTransition: false,
+      cameraDistance: cameraDistance
     };
     
     const handleResize = () => {
@@ -367,6 +420,7 @@ export const useThreeScene = (
       renderer.domElement.removeEventListener('mousemove', onMouseMove);
       renderer.domElement.removeEventListener('mouseup', onMouseUp);
       renderer.domElement.removeEventListener('mouseleave', onMouseUp);
+      renderer.domElement.removeEventListener('wheel', onWheel);
       renderer.domElement.removeEventListener('touchstart', onTouchStart);
       renderer.domElement.removeEventListener('touchmove', onTouchMove);
       renderer.domElement.removeEventListener('touchend', onTouchEnd);
@@ -488,7 +542,7 @@ export const useThreeScene = (
 
     const { fieldLineGroup, oldFieldLineGroup, sourceSurface } = sceneRef.current;
 
-    // NEW: Move current field lines to old group if they exist
+    // Move current field lines to old group if they exist
     const hasExistingLines = fieldLineGroup.children.length > 0;
     if (hasExistingLines && currentCoronalDataRef.current !== coronalData) {
       // Clear old group first
@@ -598,4 +652,4 @@ export const useThreeScene = (
     if (!sceneRef.current) return;
     sceneRef.current.sourceSurface.visible = showCoronalLines && showSourceSurface;
   }, [showCoronalLines, showSourceSurface]);
-}
+};
