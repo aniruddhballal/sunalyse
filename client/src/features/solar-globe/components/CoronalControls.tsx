@@ -110,7 +110,7 @@ export default function CoronalControls({
                 showOpenLines ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-700 hover:bg-gray-600'
               }`}
             >
-              {showOpenLines ? '✓' : ''} Open
+              Open
             </button>
             
             <button
@@ -119,7 +119,7 @@ export default function CoronalControls({
                 showClosedLines ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-700 hover:bg-gray-600'
               }`}
             >
-              {showClosedLines ? '✓' : ''} Closed
+              Closed
             </button>
             
             <button
@@ -128,7 +128,7 @@ export default function CoronalControls({
                 showSourceSurface ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-700 hover:bg-gray-600'
               }`}
             >
-              {showSourceSurface ? '✓' : ''} Surface
+              Surface
             </button>
           </div>
         </div>
