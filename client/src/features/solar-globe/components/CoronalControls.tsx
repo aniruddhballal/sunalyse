@@ -100,35 +100,37 @@ export default function CoronalControls({
 
       {/* Line Type Controls - Show when coronal lines are visible */}
       {showCoronalLines && coronalData && (
-        <div className="space-y-2 pt-3 mt-3 border-t border-gray-800">
+        <div className="pt-3 mt-3 border-t border-gray-800">
           <div className="text-xs text-gray-300 mb-2">Line Types</div>
           
-          <button
-            onClick={() => setShowOpenLines(!showOpenLines)}
-            className={`w-full text-white text-sm font-light transition-colors backdrop-blur px-3 py-2 rounded ${
-              showOpenLines ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-700 hover:bg-gray-600'
-            }`}
-          >
-            {showOpenLines ? '✓' : ''} Open Lines
-          </button>
-          
-          <button
-            onClick={() => setShowClosedLines(!showClosedLines)}
-            className={`w-full text-white text-sm font-light transition-colors backdrop-blur px-3 py-2 rounded ${
-              showClosedLines ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-700 hover:bg-gray-600'
-            }`}
-          >
-            {showClosedLines ? '✓' : ''} Closed Lines
-          </button>
-          
-          <button
-            onClick={() => setShowSourceSurface(!showSourceSurface)}
-            className={`w-full text-white text-sm font-light transition-colors backdrop-blur px-3 py-2 rounded ${
-              showSourceSurface ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-700 hover:bg-gray-600'
-            }`}
-          >
-            {showSourceSurface ? '✓' : ''} Source Surface
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowOpenLines(!showOpenLines)}
+              className={`flex-1 text-white text-sm font-light transition-colors backdrop-blur px-3 py-2 rounded ${
+                showOpenLines ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-700 hover:bg-gray-600'
+              }`}
+            >
+              {showOpenLines ? '✓' : ''} Open
+            </button>
+            
+            <button
+              onClick={() => setShowClosedLines(!showClosedLines)}
+              className={`flex-1 text-white text-sm font-light transition-colors backdrop-blur px-3 py-2 rounded ${
+                showClosedLines ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-700 hover:bg-gray-600'
+              }`}
+            >
+              {showClosedLines ? '✓' : ''} Closed
+            </button>
+            
+            <button
+              onClick={() => setShowSourceSurface(!showSourceSurface)}
+              className={`flex-1 text-white text-sm font-light transition-colors backdrop-blur px-3 py-2 rounded ${
+                showSourceSurface ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-700 hover:bg-gray-600'
+              }`}
+            >
+              {showSourceSurface ? '✓' : ''} Surface
+            </button>
+          </div>
         </div>
       )}
     </div>
