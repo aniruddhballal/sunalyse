@@ -39,7 +39,7 @@ export default function ScaleControls({
 
   return (
     <div 
-      className="absolute top-4 left-4 md:top-4 bg-black/80 border border-gray-800 rounded-lg backdrop-blur z-20 pointer-events-auto p-4"
+      className="absolute top-4 left-4 md:top-4 bg-black/80 border border-gray-800 rounded-lg backdrop-blur z-50 pointer-events-auto p-4"
       onTouchStart={(e) => e.stopPropagation()}
       onTouchMove={(e) => e.stopPropagation()}
     >
