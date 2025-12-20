@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useEffect } from 'react';
 import UploadView from './UploadView';
 import ViewerView from './ViewerView';
 import { useFileUpload } from './hooks/useFileUpload';
@@ -7,6 +7,7 @@ import { useCoronalFieldLines } from './hooks/useCoronalFieldLines';
 
 export default function SolarMagneticFieldGlobe() {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const shouldAutoFetchCoronalRef = useRef(false);
   
   const {
     uploadProgress,
@@ -49,11 +50,20 @@ export default function SolarMagneticFieldGlobe() {
     toggleCoronalLines,
   } = useCoronalFieldLines();
   
+  // Auto-fetch coronal data when CR changes if coronal lines were visible
+  useEffect(() => {
+    if (currentCRNumber && shouldAutoFetchCoronalRef.current && !isNavigating && !isLoadingCoronal) {
+      fetchCoronalData(currentCRNumber);
+      shouldAutoFetchCoronalRef.current = false;
+    }
+  }, [currentCRNumber, isNavigating, isLoadingCoronal]);
+  
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       resetCarrington();
       clearCoronalData();
+      shouldAutoFetchCoronalRef.current = false;
       handleFileSelect(file);
     }
   };
@@ -64,6 +74,7 @@ export default function SolarMagneticFieldGlobe() {
       return;
     }
     clearCoronalData();
+    shouldAutoFetchCoronalRef.current = false;
     await fetchCarringtonData(
       rotationNum,
       false,
@@ -82,8 +93,10 @@ export default function SolarMagneticFieldGlobe() {
       ? currentCRNumber + 1 
       : currentCRNumber - 1;
     
-    // Clear coronal data when navigating
-    clearCoronalData();
+    // If coronal data is currently loaded, mark to auto-fetch for new CR
+    if (coronalData !== null) {
+      shouldAutoFetchCoronalRef.current = true;
+    }
     
     await fetchCarringtonData(
       newCRNumber,
@@ -108,6 +121,7 @@ export default function SolarMagneticFieldGlobe() {
     resetFileUpload();
     resetCarrington();
     clearCoronalData();
+    shouldAutoFetchCoronalRef.current = false;
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }

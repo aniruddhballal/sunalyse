@@ -10,6 +10,7 @@ interface ThreeSceneRef {
   renderer: THREE.WebGLRenderer;
   sphere: THREE.Mesh;
   fieldLineGroup: THREE.Group;
+  oldFieldLineGroup: THREE.Group; // NEW: for transitioning field lines
   sourceSurface: THREE.Mesh;
   animationId: number;
   isDragging: boolean;
@@ -22,6 +23,12 @@ interface TransitionRef {
   duration: number;
   oldFieldLines?: any[];
   newFieldLines?: any[];
+}
+
+interface FieldLineTransitionRef {
+  isTransitioning: boolean;
+  startTime: number;
+  duration: number;
 }
 
 const easeInOutCubic = (t: number): number => {
@@ -45,7 +52,9 @@ export const useThreeScene = (
   const sceneRef = useRef<ThreeSceneRef | null>(null);
   const currentFitsDataRef = useRef<FITSData | null>(null);
   const transitionRef = useRef<TransitionRef | null>(null);
+  const fieldLineTransitionRef = useRef<FieldLineTransitionRef | null>(null);
   const isRotatingRef = useRef(isRotating);
+  const currentCoronalDataRef = useRef<CoronalData | null>(null);
 
   useEffect(() => {
     isRotatingRef.current = isRotating;
@@ -85,6 +94,10 @@ export const useThreeScene = (
     // Create field line group for coronal field lines
     const fieldLineGroup = new THREE.Group();
     scene.add(fieldLineGroup);
+    
+    // NEW: Create old field line group for transitions
+    const oldFieldLineGroup = new THREE.Group();
+    scene.add(oldFieldLineGroup);
     
     // Create source surface sphere (initially hidden)
     const sourceSurfaceGeometry = new THREE.SphereGeometry(2.5, 64, 64);
@@ -155,6 +168,8 @@ export const useThreeScene = (
       // Rotate field lines and source surface with the sphere
       fieldLineGroup.rotation.y = sphere.rotation.y;
       fieldLineGroup.rotation.x = sphere.rotation.x;
+      oldFieldLineGroup.rotation.y = sphere.rotation.y;
+      oldFieldLineGroup.rotation.x = sphere.rotation.x;
       sourceSurface.rotation.y = sphere.rotation.y;
       sourceSurface.rotation.x = sphere.rotation.x;
       
@@ -203,6 +218,8 @@ export const useThreeScene = (
       // Rotate field lines and source surface with the sphere
       fieldLineGroup.rotation.y = sphere.rotation.y;
       fieldLineGroup.rotation.x = sphere.rotation.x;
+      oldFieldLineGroup.rotation.y = sphere.rotation.y;
+      oldFieldLineGroup.rotation.x = sphere.rotation.x;
       sourceSurface.rotation.y = sphere.rotation.y;
       sourceSurface.rotation.x = sphere.rotation.x;
       
@@ -229,6 +246,7 @@ export const useThreeScene = (
     const animate = () => {
       const animationId = requestAnimationFrame(animate);
       
+      // Handle texture transition
       if (transitionRef.current?.isTransitioning && sphere.material instanceof THREE.ShaderMaterial) {
         const elapsed = Date.now() - transitionRef.current.startTime;
         const rawProgress = Math.min(elapsed / transitionRef.current.duration, 1);
@@ -256,6 +274,45 @@ export const useThreeScene = (
         }
       }
       
+      // NEW: Handle field line transition
+      if (fieldLineTransitionRef.current?.isTransitioning && sceneRef.current) {
+        const elapsed = Date.now() - fieldLineTransitionRef.current.startTime;
+        const rawProgress = Math.min(elapsed / fieldLineTransitionRef.current.duration, 1);
+        const progress = easeInOutCubic(rawProgress);
+        
+        // Fade out old field lines
+        sceneRef.current.oldFieldLineGroup.traverse((obj) => {
+          if (obj instanceof THREE.Line && obj.material instanceof THREE.LineBasicMaterial) {
+            obj.material.opacity = 0.6 * (1 - progress);
+          }
+        });
+        
+        // Fade in new field lines
+        sceneRef.current.fieldLineGroup.traverse((obj) => {
+          if (obj instanceof THREE.Line && obj.material instanceof THREE.LineBasicMaterial) {
+            obj.material.opacity = 0.6 * progress;
+          }
+        });
+        
+        if (rawProgress >= 1) {
+          // Clean up old field lines
+          while (sceneRef.current.oldFieldLineGroup.children.length > 0) {
+            const child = sceneRef.current.oldFieldLineGroup.children[0];
+            if (child instanceof THREE.Line) {
+              child.geometry.dispose();
+              if (Array.isArray(child.material)) {
+                child.material.forEach(m => m.dispose());
+              } else {
+                child.material.dispose();
+              }
+            }
+            sceneRef.current.oldFieldLineGroup.remove(child);
+          }
+          
+          fieldLineTransitionRef.current.isTransitioning = false;
+        }
+      }
+      
       const shouldRotate = !isDragging && 
                           isRotatingRef.current && 
                           !(sceneRef.current?.pausedForTransition);
@@ -265,6 +322,8 @@ export const useThreeScene = (
         // Rotate field lines and source surface with the sphere
         fieldLineGroup.rotation.y = sphere.rotation.y;
         fieldLineGroup.rotation.x = sphere.rotation.x;
+        oldFieldLineGroup.rotation.y = sphere.rotation.y;
+        oldFieldLineGroup.rotation.x = sphere.rotation.x;
         sourceSurface.rotation.y = sphere.rotation.y;
         sourceSurface.rotation.x = sphere.rotation.x;
       }
@@ -284,6 +343,7 @@ export const useThreeScene = (
       renderer, 
       sphere, 
       fieldLineGroup,
+      oldFieldLineGroup,
       sourceSurface,
       animationId: 0, 
       isDragging: false,
@@ -422,24 +482,56 @@ export const useThreeScene = (
     }
   }, [useFixedScale, fixedMin, fixedMax]);
 
-  // Handle coronal field lines updates
+  // Handle coronal field lines updates with transitions
   useEffect(() => {
     if (!sceneRef.current || !coronalData) return;
 
-    const { fieldLineGroup, sourceSurface } = sceneRef.current;
+    const { fieldLineGroup, oldFieldLineGroup, sourceSurface } = sceneRef.current;
 
-    // Clear existing field lines
-    while (fieldLineGroup.children.length > 0) {
-      const child = fieldLineGroup.children[0];
-      if (child instanceof THREE.Line) {
-        child.geometry.dispose();
-        if (Array.isArray(child.material)) {
-          child.material.forEach(m => m.dispose());
-        } else {
-          child.material.dispose();
+    // NEW: Move current field lines to old group if they exist
+    const hasExistingLines = fieldLineGroup.children.length > 0;
+    if (hasExistingLines && currentCoronalDataRef.current !== coronalData) {
+      // Clear old group first
+      while (oldFieldLineGroup.children.length > 0) {
+        const child = oldFieldLineGroup.children[0];
+        if (child instanceof THREE.Line) {
+          child.geometry.dispose();
+          if (Array.isArray(child.material)) {
+            child.material.forEach(m => m.dispose());
+          } else {
+            child.material.dispose();
+          }
         }
+        oldFieldLineGroup.remove(child);
       }
-      fieldLineGroup.remove(child);
+      
+      // Move current lines to old group
+      while (fieldLineGroup.children.length > 0) {
+        const child = fieldLineGroup.children[0];
+        fieldLineGroup.remove(child);
+        oldFieldLineGroup.add(child);
+      }
+      
+      // Start transition
+      fieldLineTransitionRef.current = {
+        isTransitioning: true,
+        startTime: Date.now(),
+        duration: 800
+      };
+    } else {
+      // Clear existing field lines (initial load case)
+      while (fieldLineGroup.children.length > 0) {
+        const child = fieldLineGroup.children[0];
+        if (child instanceof THREE.Line) {
+          child.geometry.dispose();
+          if (Array.isArray(child.material)) {
+            child.material.forEach(m => m.dispose());
+          } else {
+            child.material.dispose();
+          }
+        }
+        fieldLineGroup.remove(child);
+      }
     }
 
     // Update source surface radius
@@ -464,7 +556,7 @@ export const useThreeScene = (
       const material = new THREE.LineBasicMaterial({
         color: color,
         transparent: true,
-        opacity: 0.6,
+        opacity: hasExistingLines ? 0 : 0.6, // Start at 0 if transitioning
         linewidth: 1
       });
 
@@ -481,6 +573,8 @@ export const useThreeScene = (
       
       fieldLineGroup.add(line);
     });
+
+    currentCoronalDataRef.current = coronalData;
 
   }, [coronalData]);
 
@@ -504,4 +598,4 @@ export const useThreeScene = (
     if (!sceneRef.current) return;
     sceneRef.current.sourceSurface.visible = showCoronalLines && showSourceSurface;
   }, [showCoronalLines, showSourceSurface]);
-};
+}
