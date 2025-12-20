@@ -124,7 +124,7 @@ export default function SolarMagneticFieldGlobe() {
       ) : (
         <ViewerView
           fitsData={fitsData}
-          fileName={dataSource}
+          dataSource={dataSource}
           onReset={handleReset}
           currentCarringtonNumber={currentCRNumber}
           onNavigate={handleNavigate}

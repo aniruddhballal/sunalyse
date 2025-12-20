@@ -6,7 +6,7 @@ import type { CoronalData } from './hooks/useCoronalFieldLines';
 
 interface ViewerViewProps {
   fitsData: FITSData;
-  fileName: string;
+  dataSource: string;
   onReset: () => void;
   currentCarringtonNumber?: number;
   onNavigate?: (direction: 'next' | 'prev') => void;
@@ -27,7 +27,7 @@ interface ViewerViewProps {
 
 export default function ViewerView({ 
   fitsData, 
-  fileName, 
+  dataSource, 
   onReset, 
   currentCarringtonNumber,
   onNavigate,
@@ -97,7 +97,7 @@ export default function ViewerView({
         setShowClosedLines={setShowClosedLines}
         setShowSourceSurface={setShowSourceSurface}
         currentCarringtonNumber={currentCarringtonNumber}
-        fileName={fileName}
+        dataSource={dataSource}
       />
 
       <div 

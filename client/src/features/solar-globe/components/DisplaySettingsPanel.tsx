@@ -43,7 +43,7 @@ interface DisplaySettingsPanelProps {
   currentCarringtonNumber?: number;
   
   // Details props
-  fileName: string;
+  dataSource: string;
 }
 
 type ActivePanel = 'none' | 'photosphere' | 'corona' | 'details';
@@ -69,7 +69,7 @@ export default function DisplaySettingsPanel({
   setShowClosedLines,
   setShowSourceSurface,
   currentCarringtonNumber,
-  fileName
+  dataSource
 }: DisplaySettingsPanelProps) {
   const [isMainOpen, setIsMainOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<ActivePanel>('none');
@@ -184,7 +184,7 @@ export default function DisplaySettingsPanel({
       {activePanel === 'details' && (
         <DetailsSubPanel
           fitsData={fitsData}
-          fileName={fileName}
+          dataSource={dataSource}
           onClose={handleCloseSubPanel}
         />
       )}

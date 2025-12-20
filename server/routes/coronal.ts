@@ -32,8 +32,8 @@ router.get('/:crNumber', async (req: Request, res: Response) => {
       });
     }
 
-    const filename = `cr${crNumber}_coronal.json`;
-    const url = `${HF_RESOLVE_BASE}/${filename}`;
+    const dataSource = `cr${crNumber}_coronal.json`;
+    const url = `${HF_RESOLVE_BASE}/${dataSource}`;
 
     const hfResponse = await fetch(url);
 

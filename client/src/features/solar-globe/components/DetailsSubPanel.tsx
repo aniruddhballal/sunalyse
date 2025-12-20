@@ -22,8 +22,8 @@ function getCarringtonDates(crNumber: number): { start: Date; end: Date } | null
   return { start: startDate, end: endDate };
 }
 
-function extractCarringtonNumber(fileName: string): number | null {
-  const match = fileName.match(/CR(\d+)/i);
+function extractCarringtonNumber(dataSource: string): number | null {
+  const match = dataSource.match(/CR(\d+)/i);
   if (match) {
     return parseInt(match[1]);
   }
@@ -37,16 +37,16 @@ function formatDate(date: Date): string {
 
 interface DetailsSubPanelProps {
   fitsData: FITSData | null;
-  fileName: string;
+  dataSource: string;
   onClose: () => void;
 }
 
 export default function DetailsSubPanel({
   fitsData,
-  fileName,
+  dataSource,
   onClose
 }: DetailsSubPanelProps) {
-  const crNumber = extractCarringtonNumber(fileName);
+  const crNumber = extractCarringtonNumber(dataSource);
   const dates = crNumber ? getCarringtonDates(crNumber) : null;
 
   if (!fitsData) return null;
@@ -56,7 +56,7 @@ export default function DetailsSubPanel({
       <div className="flex justify-between items-start mb-3">
         <div>
           <h2 className="text-lg font-light text-white tracking-wide">Solar Magnetic Field</h2>
-          <div className="text-gray-400 text-xs font-light mt-1">{fileName}</div>
+          <div className="text-gray-400 text-xs font-light mt-1">{dataSource}</div>
         </div>
         <button
           onClick={onClose}
