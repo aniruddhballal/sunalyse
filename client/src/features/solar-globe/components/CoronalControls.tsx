@@ -65,21 +65,12 @@ export default function CoronalControls({
       onTouchStart={(e) => e.stopPropagation()}
       onTouchMove={(e) => e.stopPropagation()}
     >
-      <div className="flex justify-end items-start">
-        <button
-          onClick={() => setIsOpen(false)}
-          className="text-gray-400 hover:text-white -mt-1"
-        >
-          <ChevronUp size={16} />
-        </button>
-      </div>
-
-      <div className="space-y-3 -mt-2">
+      <div className="flex justify-between items-center gap-3">
         {/* Main Toggle Button */}
         <button
           onClick={handleCoronalToggle}
           disabled={isLoadingCoronal}
-          className={`w-full text-white text-sm font-light transition-colors backdrop-blur px-3 py-2 rounded ${
+          className={`flex-1 text-white text-sm font-light transition-colors backdrop-blur px-3 py-2 rounded ${
             showCoronalLines 
               ? 'bg-green-600 hover:bg-green-700' 
               : 'bg-gray-800 hover:bg-gray-700'
@@ -92,47 +83,54 @@ export default function CoronalControls({
               : 'Load Field Lines'}
         </button>
 
-        {/* Error display */}
-        {coronalError && (
-          <div className="text-red-400 text-xs bg-red-900/30 backdrop-blur px-3 py-2 rounded">
-            {coronalError}
-          </div>
-        )}
-
-        {/* Line Type Controls - Show when coronal lines are visible */}
-        {showCoronalLines && coronalData && (
-          <div className="space-y-2 pt-3 border-t border-gray-800">
-            <div className="text-xs text-gray-300 mb-2">Line Types</div>
-            
-            <button
-              onClick={() => setShowOpenLines(!showOpenLines)}
-              className={`w-full text-white text-sm font-light transition-colors backdrop-blur px-3 py-2 rounded ${
-                showOpenLines ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-700 hover:bg-gray-600'
-              }`}
-            >
-              {showOpenLines ? '✓' : ''} Open Lines
-            </button>
-            
-            <button
-              onClick={() => setShowClosedLines(!showClosedLines)}
-              className={`w-full text-white text-sm font-light transition-colors backdrop-blur px-3 py-2 rounded ${
-                showClosedLines ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-700 hover:bg-gray-600'
-              }`}
-            >
-              {showClosedLines ? '✓' : ''} Closed Lines
-            </button>
-            
-            <button
-              onClick={() => setShowSourceSurface(!showSourceSurface)}
-              className={`w-full text-white text-sm font-light transition-colors backdrop-blur px-3 py-2 rounded ${
-                showSourceSurface ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-700 hover:bg-gray-600'
-              }`}
-            >
-              {showSourceSurface ? '✓' : ''} Source Surface
-            </button>
-          </div>
-        )}
+        <button
+          onClick={() => setIsOpen(false)}
+          className="text-gray-400 hover:text-white flex-shrink-0"
+        >
+          <ChevronUp size={16} />
+        </button>
       </div>
+
+      {/* Error display */}
+      {coronalError && (
+        <div className="text-red-400 text-xs bg-red-900/30 backdrop-blur px-3 py-2 rounded mt-3">
+          {coronalError}
+        </div>
+      )}
+
+      {/* Line Type Controls - Show when coronal lines are visible */}
+      {showCoronalLines && coronalData && (
+        <div className="space-y-2 pt-3 mt-3 border-t border-gray-800">
+          <div className="text-xs text-gray-300 mb-2">Line Types</div>
+          
+          <button
+            onClick={() => setShowOpenLines(!showOpenLines)}
+            className={`w-full text-white text-sm font-light transition-colors backdrop-blur px-3 py-2 rounded ${
+              showOpenLines ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-700 hover:bg-gray-600'
+            }`}
+          >
+            {showOpenLines ? '✓' : ''} Open Lines
+          </button>
+          
+          <button
+            onClick={() => setShowClosedLines(!showClosedLines)}
+            className={`w-full text-white text-sm font-light transition-colors backdrop-blur px-3 py-2 rounded ${
+              showClosedLines ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-700 hover:bg-gray-600'
+            }`}
+          >
+            {showClosedLines ? '✓' : ''} Closed Lines
+          </button>
+          
+          <button
+            onClick={() => setShowSourceSurface(!showSourceSurface)}
+            className={`w-full text-white text-sm font-light transition-colors backdrop-blur px-3 py-2 rounded ${
+              showSourceSurface ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-700 hover:bg-gray-600'
+            }`}
+          >
+            {showSourceSurface ? '✓' : ''} Source Surface
+          </button>
+        </div>
+      )}
     </div>
   );
 }
