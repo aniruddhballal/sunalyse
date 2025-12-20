@@ -65,16 +65,16 @@ export default function CoronalControls({
       onTouchStart={(e) => e.stopPropagation()}
       onTouchMove={(e) => e.stopPropagation()}
     >
-      <div className="flex justify-end items-start mb-3">
+      <div className="flex justify-end items-start">
         <button
           onClick={() => setIsOpen(false)}
-          className="text-gray-400 hover:text-white"
+          className="text-gray-400 hover:text-white -mt-1"
         >
           <ChevronUp size={16} />
         </button>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-3 -mt-2">
         {/* Main Toggle Button */}
         <button
           onClick={handleCoronalToggle}

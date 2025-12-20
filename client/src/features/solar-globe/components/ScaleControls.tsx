@@ -43,16 +43,16 @@ export default function ScaleControls({
       onTouchStart={(e) => e.stopPropagation()}
       onTouchMove={(e) => e.stopPropagation()}
     >
-      <div className="flex justify-end items-start mb-3">
+      <div className="flex justify-end items-start">
         <button
           onClick={() => setIsOpen(false)}
-          className="text-gray-400 hover:text-white"
+          className="text-gray-400 hover:text-white -mt-1"
         >
           <ChevronUp size={16} />
         </button>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-3 -mt-2">
         <label className="flex items-center gap-2 cursor-pointer">
           <input
             type="checkbox"
