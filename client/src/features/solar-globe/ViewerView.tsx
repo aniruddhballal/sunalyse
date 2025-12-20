@@ -186,20 +186,12 @@ export default function ViewerView({
             </div>
           )}
           
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => setShowDetails(!showDetails)}
-              className="text-white text-xs font-light hover:text-gray-300 transition-colors bg-black/70 backdrop-blur px-3 py-2.5 rounded"
-            >
-              {showDetails ? 'Hide' : 'Show'} Details
-            </button>
-            <button
-              onClick={onReset}
-              className="text-white text-xs font-light hover:text-gray-300 transition-colors bg-black/70 backdrop-blur px-3 py-2.5 rounded"
-            >
-              View Another
-            </button>
-          </div>
+          <button
+            onClick={onReset}
+            className="text-white text-xs font-light hover:text-gray-300 transition-colors bg-black/70 backdrop-blur px-3 py-2.5 rounded"
+          >
+            View Another
+          </button>
         </div>
       </div>
 
@@ -218,13 +210,12 @@ export default function ViewerView({
         )}
       </div>
 
-      {showDetails && (
-        <DetailsPanel
-          fitsData={fitsData}
-          fileName={fileName}
-          onClose={() => setShowDetails(false)}
-        />
-      )}
+      <DetailsPanel
+        fitsData={fitsData}
+        fileName={fileName}
+        showDetails={showDetails}
+        setShowDetails={setShowDetails}
+      />
     </>
   );
 }

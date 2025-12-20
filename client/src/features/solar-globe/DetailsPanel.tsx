@@ -1,4 +1,4 @@
-import { X } from 'lucide-react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import type { FITSData } from './fits/types';
 
 // Carrington Rotation 1 started on November 9, 1853
@@ -29,17 +29,39 @@ function formatDate(date: Date): string {
   return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
 }
 
-export default function DetailsPanel({ fitsData, fileName, onClose }: {
+interface DetailsPanelProps {
   fitsData: FITSData;
   fileName: string;
-  onClose: () => void;
-}) {
+  showDetails: boolean;
+  setShowDetails: (show: boolean) => void;
+}
+
+export default function DetailsPanel({ 
+  fitsData, 
+  fileName, 
+  showDetails, 
+  setShowDetails 
+}: DetailsPanelProps) {
   const crNumber = extractCarringtonNumber(fileName);
   const dates = crNumber ? getCarringtonDates(crNumber) : null;
 
+  if (!showDetails) {
+    return (
+      <button
+        onClick={() => setShowDetails(true)}
+        className="absolute top-4 right-4 md:top-4 bg-black/70 backdrop-blur px-3 py-2 rounded-lg text-white z-20 pointer-events-auto hover:bg-black/90 transition-colors flex items-center gap-2"
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
+      >
+        <span className="text-sm font-medium">Details</span>
+        <ChevronDown size={16} />
+      </button>
+    );
+  }
+
   return (
     <div 
-      className="absolute top-24 right-6 md:top-20 bg-black/80 border border-gray-800 p-4 space-y-3 backdrop-blur z-20 pointer-events-auto"
+      className="absolute top-4 right-4 md:top-4 bg-black/80 border border-gray-800 rounded-lg backdrop-blur z-20 pointer-events-auto p-4"
       onTouchStart={(e) => e.stopPropagation()}
       onTouchMove={(e) => e.stopPropagation()}
     >
@@ -49,10 +71,10 @@ export default function DetailsPanel({ fitsData, fileName, onClose }: {
           <div className="text-gray-400 text-xs font-light mt-1">{fileName}</div>
         </div>
         <button
-          onClick={onClose}
+          onClick={() => setShowDetails(false)}
           className="text-gray-400 hover:text-white ml-4"
         >
-          <X size={16} />
+          <ChevronUp size={16} />
         </button>
       </div>
       
