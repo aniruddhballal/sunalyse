@@ -1,29 +1,25 @@
 import { useRef, useEffect } from 'react';
 import UploadView from './UploadView';
 import ViewerView from './ViewerView';
-import { useFileUpload } from './hooks/useFileUpload';
+import { useFitsData } from './hooks/useFitsData';
 import { useCarringtonData } from './hooks/useCarringtonData';
 import { useCoronalFieldLines } from './hooks/useCoronalFieldLines';
 
 export default function SolarMagneticFieldGlobe() {
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const shouldAutoFetchCoronalRef = useRef(false);
   const pendingCoronalFetchRef = useRef<number | null>(null);
   
   const {
-    uploadProgress,
-    isUploading,
-    fileName,
+    isFetching,
+    dataSource,
     fitsData,
     isProcessing,
-    handleFileSelect,
-    reset: resetFileUpload,
-    setFileName,
+    reset: resetFitsData,
+    setDataSource,
     setFitsData,
     setIsProcessing,
-    setIsUploading,
-    setUploadProgress
-  } = useFileUpload();
+    setIsFetching
+  } = useFitsData();
   
   const {
     carringtonNumber,
@@ -59,17 +55,6 @@ export default function SolarMagneticFieldGlobe() {
     }
   }, [currentCRNumber, isNavigating, isLoadingCoronal]);
   
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      resetCarrington();
-      clearCoronalData();
-      shouldAutoFetchCoronalRef.current = false;
-      pendingCoronalFetchRef.current = null;
-      handleFileSelect(file);
-    }
-  };
-  
   const handleCarringtonFetch = async () => {
     const rotationNum = parseInt(carringtonNumber);
     if (!rotationNum) {
@@ -81,10 +66,9 @@ export default function SolarMagneticFieldGlobe() {
     await fetchCarringtonData(
       rotationNum,
       false,
-      setFileName,
+      setDataSource,
       setFitsData,
-      setIsUploading,
-      setUploadProgress,
+      setIsFetching,
       setIsProcessing
     );
   };
@@ -106,10 +90,9 @@ export default function SolarMagneticFieldGlobe() {
     await fetchCarringtonData(
       newCRNumber,
       true,
-      setFileName,
+      setDataSource,
       setFitsData,
-      setIsUploading,
-      setUploadProgress,
+      setIsFetching,
       setIsProcessing
     );
   };
@@ -118,38 +101,21 @@ export default function SolarMagneticFieldGlobe() {
     fetchCoronalData(crNumber);
   };
   
-  const handleButtonClick = () => {
-    fileInputRef.current?.click();
-  };
-  
   const handleReset = () => {
-    resetFileUpload();
+    resetFitsData();
     resetCarrington();
     clearCoronalData();
     shouldAutoFetchCoronalRef.current = false;
     pendingCoronalFetchRef.current = null;
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
   };
   
   return (
     <div className="relative w-full h-screen bg-black overflow-hidden" style={{ minHeight: '100dvh' }}>
-      <input
-        ref={fileInputRef}
-        type="file"
-        onChange={handleFileChange}
-        className="hidden"
-        accept=".fits"
-      />
-      
       {!fitsData ? (
         <UploadView
-          isUploading={isUploading}
+          isFetching={isFetching}
           isProcessing={isProcessing}
-          fileName={fileName}
-          uploadProgress={uploadProgress}
-          onUploadClick={handleButtonClick}
+          dataSource={dataSource}
           carringtonNumber={carringtonNumber}
           onCarringtonChange={setCarringtonNumber}
           onCarringtonFetch={handleCarringtonFetch}
@@ -158,7 +124,7 @@ export default function SolarMagneticFieldGlobe() {
       ) : (
         <ViewerView
           fitsData={fitsData}
-          fileName={fileName}
+          fileName={dataSource}
           onReset={handleReset}
           currentCarringtonNumber={currentCRNumber}
           onNavigate={handleNavigate}

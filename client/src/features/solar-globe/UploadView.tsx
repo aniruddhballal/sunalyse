@@ -1,9 +1,7 @@
 interface UploadViewProps {
-  isUploading: boolean;
+  isFetching: boolean;
   isProcessing: boolean;
-  fileName: string;
-  uploadProgress: number;
-  onUploadClick: () => void;
+  dataSource: string;
   carringtonNumber: string;
   onCarringtonChange: (value: string) => void;
   onCarringtonFetch: () => void;
@@ -11,11 +9,9 @@ interface UploadViewProps {
 }
 
 export default function UploadView({
-  isUploading,
+  isFetching,
   isProcessing,
-  fileName,
-  uploadProgress,
-  onUploadClick,
+  dataSource,
   carringtonNumber,
   onCarringtonChange,
   onCarringtonFetch,
@@ -29,31 +25,6 @@ export default function UploadView({
         </h1>
         
         <div className="space-y-6">
-          {/* File Upload Section */}
-          <div className="space-y-3">
-            <p className="text-gray-400 text-sm font-light">
-              Upload a FITS file to visualize solar magnetic field data
-            </p>
-            
-            <button
-              onClick={onUploadClick}
-              disabled={isUploading || isProcessing}
-              className="w-full px-8 py-3 bg-white/10 hover:bg-white/20 text-white font-light rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed border border-white/20"
-            >
-              {isUploading ? 'Uploading...' : isProcessing ? 'Processing...' : 'Choose FITS File'}
-            </button>
-          </div>
-
-          {/* Divider */}
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-700"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-4 bg-black text-gray-500">or</span>
-            </div>
-          </div>
-
           {/* Carrington Rotation Input Section */}
           <div className="space-y-3">
             <p className="text-gray-400 text-sm font-light">
@@ -67,36 +38,32 @@ export default function UploadView({
                 onChange={(e) => onCarringtonChange(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && onCarringtonFetch()}
                 placeholder="e.g., 2150"
-                disabled={isUploading || isProcessing}
+                disabled={isFetching || isProcessing}
                 className="flex-1 px-4 py-3 bg-white/10 text-white font-light rounded-lg border border-white/20 focus:outline-none focus:border-white/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed placeholder-gray-500"
               />
               <button
                 onClick={onCarringtonFetch}
-                disabled={isUploading || isProcessing || !carringtonNumber}
+                disabled={isFetching || isProcessing || !carringtonNumber}
                 className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-light rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Fetch
               </button>
             </div>
-
             {fetchError && (
               <p className="text-red-400 text-xs font-light">{fetchError}</p>
             )}
           </div>
         </div>
 
-        {(isUploading || isProcessing) && (
+        {(isFetching || isProcessing) && (
           <div className="space-y-3 pt-4">
-            {fileName && (
-              <p className="text-gray-400 text-sm font-light">{fileName}</p>
+            {dataSource && (
+              <p className="text-gray-400 text-sm font-light">{dataSource}</p>
             )}
-            {isUploading && (
-              <div className="w-full bg-white/10 rounded-full h-1 overflow-hidden">
-                <div 
-                  className="bg-white h-full transition-all duration-300 ease-out"
-                  style={{ width: `${uploadProgress}%` }}
-                />
-              </div>
+            {isFetching && (
+              <p className="text-gray-400 text-sm font-light animate-pulse">
+                Fetching data...
+              </p>
             )}
             {isProcessing && (
               <p className="text-gray-400 text-sm font-light animate-pulse">

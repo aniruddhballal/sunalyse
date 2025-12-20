@@ -1,10 +1,9 @@
-// hooks/useCarringtonData.ts
-
 import { useState } from 'react';
 import { parseFITS } from '../fits/fitsUtils';
 import type { FITSData } from '../fits/types';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
+
 if (!API_BASE) {
   throw new Error('VITE_API_BASE_URL is not defined');
 }
@@ -18,10 +17,9 @@ export const useCarringtonData = () => {
   const fetchCarringtonData = async (
     rotationNum: number,
     isNavigation: boolean,
-    setFileName: (name: string) => void,
+    setDataSource: (name: string) => void,
     setFitsData: (data: FITSData | null) => void,
-    setIsUploading: (value: boolean) => void,
-    setUploadProgress: (value: number | ((prev: number) => number)) => void,
+    setIsFetching: (value: boolean) => void,
     setIsProcessing: (value: boolean) => void
   ) => {
     if (rotationNum < 2096 || rotationNum > 2285) {
@@ -34,25 +32,17 @@ export const useCarringtonData = () => {
     if (isNavigation) {
       setIsNavigating(true);
     } else {
-      setIsUploading(true);
-      setUploadProgress(0);
+      setIsFetching(true);
       setFitsData(null);
     }
     
-    setFileName(`CR${rotationNum}.fits`);
+    setDataSource(`CR${rotationNum}.fits`);
 
     try {
       if (!isNavigation) {
-        const progressInterval = setInterval(() => {
-          setUploadProgress(prev => Math.min(prev + 15, 90));
-        }, 200);
-
         const response = await fetch(
           `${API_BASE}/api/fits/carrington/${rotationNum}`
         );
-
-        clearInterval(progressInterval);
-        setUploadProgress(100);
 
         if (!response.ok) {
           throw new Error(`Failed to fetch CR${rotationNum}: ${response.statusText}`);
@@ -61,7 +51,7 @@ export const useCarringtonData = () => {
         const blob = await response.blob();
         const file = new File([blob], `CR${rotationNum}.fits`, { type: 'application/fits' });
 
-        setIsUploading(false);
+        setIsFetching(false);
         setIsProcessing(true);
         
         const parsed = await parseFITS(file);
@@ -88,10 +78,9 @@ export const useCarringtonData = () => {
       }
       
     } catch (error) {
-      setIsUploading(false);
+      setIsFetching(false);
       setIsNavigating(false);
       setFetchError(error instanceof Error ? error.message : 'Failed to fetch FITS file');
-      setUploadProgress(0);
     }
   };
 
