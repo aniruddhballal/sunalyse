@@ -3,8 +3,8 @@ import type { FITSData } from './fits/types';
 import type { CoronalData } from './hooks/useCoronalFieldLines';
 import { useThreeScene } from './hooks/useThreeScene';
 import { use2DRenderer } from './hooks/use2DRenderer';
-import ScaleControls from './components/ScaleControls';
-import CoronalControls from './components/CoronalControls';
+import Photosphere from './components/Photosphere';
+import Corona from './components/Corona';
 
 interface GlobeViewerProps {
   fitsData: FITSData;
@@ -78,7 +78,7 @@ export default function GlobeViewer({
   
   return (
     <>
-      <ScaleControls
+      <Photosphere
         useFixedScale={useFixedScale}
         setUseFixedScale={setUseFixedScale}
         fixedMin={fixedMin}
@@ -88,7 +88,7 @@ export default function GlobeViewer({
         fitsData={fitsData}
       />
 
-      <CoronalControls
+      <Corona
         coronalData={coronalData}
         isLoadingCoronal={isLoadingCoronal}
         coronalError={coronalError}
