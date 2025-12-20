@@ -49,11 +49,11 @@ export default function CoronalControls({
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="absolute top-[76px] left-4 md:top-[76px] bg-black/70 backdrop-blur px-3 py-2 rounded-lg text-white z-20 pointer-events-auto hover:bg-black/90 transition-colors flex items-center gap-2"
+        className="absolute top-4 left-1/2 -translate-x-1/2 md:top-4 bg-black/70 backdrop-blur px-3 py-2 rounded-lg text-white z-20 pointer-events-auto hover:bg-black/90 transition-colors flex items-center gap-2"
         onTouchStart={(e) => e.stopPropagation()}
         onTouchMove={(e) => e.stopPropagation()}
       >
-        <span className="text-sm font-medium">Coronal Controls</span>
+        <span className="text-sm font-medium">Corona</span>
         <ChevronDown size={16} />
       </button>
     );
@@ -61,12 +61,12 @@ export default function CoronalControls({
 
   return (
     <div 
-      className="absolute top-[76px] left-4 md:top-[76px] bg-black/70 backdrop-blur p-4 rounded-lg text-white z-20 pointer-events-auto"
+      className="absolute top-4 left-1/2 -translate-x-1/2 md:top-4 bg-black/70 backdrop-blur p-4 rounded-lg text-white z-20 pointer-events-auto"
       onTouchStart={(e) => e.stopPropagation()}
       onTouchMove={(e) => e.stopPropagation()}
     >
       <div className="flex items-center justify-between mb-3">
-        <span className="text-sm font-medium">Coronal Controls</span>
+        <span className="text-sm font-medium">Corona</span>
         <button
           onClick={() => setIsOpen(false)}
           className="text-gray-400 hover:text-white ml-2"

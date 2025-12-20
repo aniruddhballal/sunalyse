@@ -31,7 +31,7 @@ export default function ScaleControls({
         onTouchStart={(e) => e.stopPropagation()}
         onTouchMove={(e) => e.stopPropagation()}
       >
-        <span className="text-sm font-medium">Scale Controls</span>
+        <span className="text-sm font-medium">Photosphere</span>
         <ChevronDown size={16} />
       </button>
     );
@@ -44,15 +44,7 @@ export default function ScaleControls({
       onTouchMove={(e) => e.stopPropagation()}
     >
       <div className="flex items-center justify-between mb-2">
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={useFixedScale}
-            onChange={(e) => setUseFixedScale(e.target.checked)}
-            className="w-4 h-4"
-          />
-          <span className="text-sm font-medium">Fixed Scale Mode</span>
-        </label>
+        <span className="text-sm font-medium">Photosphere</span>
         <button
           onClick={() => setIsOpen(false)}
           className="text-gray-400 hover:text-white ml-2"
@@ -60,9 +52,19 @@ export default function ScaleControls({
           <ChevronUp size={16} />
         </button>
       </div>
+
+      <label className="flex items-center gap-2 cursor-pointer mb-3">
+        <input
+          type="checkbox"
+          checked={useFixedScale}
+          onChange={(e) => setUseFixedScale(e.target.checked)}
+          className="w-4 h-4"
+        />
+        <span className="text-sm font-light">Fixed Scale Mode</span>
+      </label>
       
       {useFixedScale && (
-        <div className="flex gap-3 items-center mt-3">
+        <div className="flex gap-3 items-center mb-3">
           <div className="flex flex-col gap-1">
             <label className="text-xs text-gray-300">Min (G)</label>
             <input
@@ -86,7 +88,7 @@ export default function ScaleControls({
         </div>
       )}
       
-      <div className="mt-3 pt-3 border-t border-gray-600 text-xs text-gray-300">
+      <div className="pt-3 border-t border-gray-600 text-xs text-gray-300">
         <div>Data range: {fitsData?.min.toFixed(1)} to {fitsData?.max.toFixed(1)} G</div>
       </div>
     </div>
