@@ -8,9 +8,9 @@ import time
 # ============================================================
 # CONFIGURATION - EDIT THESE VALUES
 # ============================================================
-CR_NUMBER = 2240  # Change this to your desired CR number
+CR_NUMBER = 2096  # Change this to your desired CR number
 LMAX = 40         # Maximum spherical harmonic degree
-FITS_FOLDER = "fits files"  # Folder containing FITS files
+FITS_FOLDER = "fits_files"  # Folder containing FITS files
 OUTPUT_FOLDER = "alm_coefficients"  # Where to save CSV files
 
 # ============================================================
