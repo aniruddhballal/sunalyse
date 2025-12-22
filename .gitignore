@@ -54,5 +54,5 @@ Thumbs.db
 
 # personal stuff
 pending_tasks.txt
-server/PFSS/fits_files
-server/PFSS/alm values
+server/PFSS Analysis/fits_files
+server/PFSS Analysis/alm values
