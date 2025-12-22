@@ -1,3 +1,9 @@
+'''
+
+ This code processes a single Carrington synoptic map at a time by reading its FITS file from a specified folder, handling missing values, and applying Gaussian smoothing. It computes spherical harmonic coefficients (a_{lm}) up to a chosen (l_{\max}) using Simpson’s 1/3 integration rule, saving these coefficients incrementally to CSV to allow resuming interrupted runs and displaying progress bars. The field is then reconstructed via spherical harmonic summation, compared against the original map, and error metrics are computed and saved to CSV. Finally, the code plots the original map, the reconstructed map, and their difference, and reports average field values and basic timing information.
+
+'''
+
 import numpy as np
 from scipy.special import sph_harm
 import matplotlib.pyplot as plt
