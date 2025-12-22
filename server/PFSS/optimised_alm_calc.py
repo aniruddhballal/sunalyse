@@ -13,7 +13,7 @@ from scipy.ndimage import gaussian_filter
 CR_NUMBER = 2096  # Change this to your desired CR number
 LMAX = 40         # Maximum spherical harmonic degree
 FITS_FOLDER = "fits_files"  # Folder containing FITS files
-OUTPUT_FOLDER = "alm_coefficients2"  # Where to save CSV files
+OUTPUT_FOLDER = "alm_coefficients_optimised"  # Where to save CSV files
 APPLY_GAUSSIAN_SMOOTHING = True  # Match your original code
 GAUSSIAN_SIGMA = 2  # Smoothing parameter
 
