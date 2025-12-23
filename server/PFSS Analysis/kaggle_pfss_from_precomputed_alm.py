@@ -38,15 +38,16 @@ if kaggle_input.exists():
                 print(f"     ... and {len(list(item.glob('*'))) - 5} more files")
 
 # Check for alm_values directory
-alm_dir = kaggle_input / "alm-values"  # Kaggle converts folder names to lowercase with hyphens
-if not alm_dir.exists():
-    # Try alternative names
-    possible_names = ["alm_values", "alm-coefficients", "spherical-harmonics"]
-    for name in possible_names:
-        alt_dir = kaggle_input / name
-        if alt_dir.exists():
-            alm_dir = alt_dir
-            break
+alm_dir = kaggle_input / "alm-values"
+if alm_dir.exists():
+    # Check if files are in a subdirectory
+    csv_files = list(alm_dir.glob("values_*.csv"))
+    if len(csv_files) == 0:
+        # Try looking in subdirectories
+        subdirs = [d for d in alm_dir.iterdir() if d.is_dir()]
+        if subdirs:
+            print(f"   Files not in root, checking subdirectory: {subdirs[0].name}")
+            alm_dir = subdirs[0]
 
 print(f"\n📊 ALM values directory: {alm_dir}")
 print(f"   Exists: {alm_dir.exists()}")
@@ -84,7 +85,11 @@ if alm_dir.exists():
 else:
     print(f"\n❌ ERROR: ALM values directory not found!")
     print(f"\n   Please ensure your dataset is uploaded to Kaggle and attached to this notebook.")
-    print(f"   Expected location: /kaggle/input/alm-values/")
+    print(f"   Expected location: /kaggle/input/alm-values/alm values")
+
+# Save the detected path for later use
+DETECTED_ALM_DIR = str(alm_dir)
+print(f"\n💾 Detected path saved: {DETECTED_ALM_DIR}")
 
 print("\n" + "="*60)
 
@@ -531,7 +536,7 @@ print("✓ Processing functions defined")
 
 # %%
 # Configuration
-ALM_INPUT_DIR = "/kaggle/input/alm-values"  # Adjust if your dataset has different name
+ALM_INPUT_DIR = DETECTED_ALM_DIR  # Use auto-detected path from Cell 1
 OUTPUT_DIR = "/kaggle/working/coronal_data_lmax85"
 N_FIELD_LINES = 100  # Increase to 500 for higher quality
 START_CR = 2096
