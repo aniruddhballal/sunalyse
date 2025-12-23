@@ -1,152 +1,75 @@
 import numpy as np
 from scipy.special import sph_harm
-from astropy.io import fits
 import json
-import pickle
+import pandas as pd
 from pathlib import Path
 
-class PFSSExtrapolation:
+class PFSSExtrapolationFromALM:
     """
-    Potential Field Source Surface (PFSS) extrapolation for solar coronal magnetic fields.
-    Uses spherical harmonic decomposition of photospheric magnetograms.
+    Potential Field Source Surface (PFSS) extrapolation using precomputed
+    spherical harmonic coefficients (alm values).
     """
     
-    def __init__(self, lmax=20, r_source=2.5):
+    def __init__(self, lmax=85, r_source=2.5):
         """
-        Initialize PFSS extrapolator.
+        Initialize PFSS extrapolator with precomputed alm coefficients.
         
         Parameters:
         -----------
         lmax : int
-            Maximum spherical harmonic degree (higher = more detail, slower)
-            Typical values: 20-60
+            Maximum spherical harmonic degree from precomputed data
         r_source : float
             Source surface radius in solar radii (typically 2.5)
         """
         self.lmax = lmax
         self.r_source = r_source
         self.alm = None
-        self.br_photosphere = None
         
-    def load_fits_magnetogram(self, fits_path):
+    def load_alm_from_csv(self, csv_path):
         """
-        Load magnetogram data from FITS file with NaN handling.
+        Load precomputed spherical harmonic coefficients from CSV file.
+        
+        The CSV format is:
+        l,m,alm
+        0,0,(0.15952343275779984+0j)
+        1,-1,(0.31592717672123205+0.3123543086243965j)
+        ...
         
         Parameters:
         -----------
-        fits_path : str
-            Path to FITS file containing Br data
-            
-        Returns:
-        --------
-        br_data : ndarray
-            Radial magnetic field at photosphere (shape: [n_theta, n_phi])
-        """
-        with fits.open(fits_path) as hdul:
-            # Assuming data is in primary HDU
-            br_data = hdul[0].data
-            
-            # Handle different FITS formats
-            if br_data is None and len(hdul) > 1:
-                br_data = hdul[1].data
-                
-            if br_data is None:
-                raise ValueError("Could not find data in FITS file")
-                
-            # Ensure proper orientation (theta, phi)
-            if br_data.ndim != 2:
-                raise ValueError(f"Expected 2D data, got shape {br_data.shape}")
-        
-        # Handle NaN values
-        n_nans = np.isnan(br_data).sum()
-        if n_nans > 0:
-            print(f"⚠ Warning: Found {n_nans} NaN values ({100*n_nans/br_data.size:.2f}% of data)")
-            print(f"  Replacing NaNs with 0.0")
-            br_data = np.nan_to_num(br_data, nan=0.0)
-        
-        # Handle infinite values
-        n_inf = np.isinf(br_data).sum()
-        if n_inf > 0:
-            print(f"⚠ Warning: Found {n_inf} infinite values")
-            print(f"  Clipping to valid range")
-            br_data = np.nan_to_num(br_data, posinf=0.0, neginf=0.0)
-                
-        return br_data
-    
-    def compute_alm_coefficients(self, br_photosphere, checkpoint_path=None):
-        """
-        Compute spherical harmonic coefficients from photospheric magnetogram.
-        Supports checkpointing to resume interrupted computations.
-        
-        Parameters:
-        -----------
-        br_photosphere : ndarray
-            Radial magnetic field at photosphere [n_theta, n_phi]
-        checkpoint_path : str, optional
-            Path to save/load checkpoint file
+        csv_path : str
+            Path to CSV file containing alm values
             
         Returns:
         --------
         alm : dict
-            Spherical harmonic coefficients {(l, m): coefficient}
+            Spherical harmonic coefficients {(l, m): complex coefficient}
         """
-        # Try to load from checkpoint
-        if checkpoint_path and Path(checkpoint_path).exists():
-            print(f"Found checkpoint at {checkpoint_path}")
-            try:
-                with open(checkpoint_path, 'rb') as f:
-                    checkpoint_data = pickle.load(f)
-                    alm = checkpoint_data['alm']
-                    saved_lmax = checkpoint_data['lmax']
-                print(f"✓ Loaded {len(alm)} coefficients from checkpoint (lmax={saved_lmax})")
-
-                if saved_lmax >= self.lmax:
-                    return alm
-                else:
-                    print(f"  Checkpoint has lmax={saved_lmax}, computing {saved_lmax+1} to {self.lmax}...")
-                    start_l = saved_lmax + 1
-
-            except Exception as e:
-                print(f"⚠ Could not load checkpoint: {e}")
-                print("  Computing from scratch...")
+        print(f"Loading alm coefficients from {csv_path}...")
         
-        n_theta, n_phi = br_photosphere.shape
+        # Read CSV file
+        df = pd.read_csv(csv_path)
         
-        # Create coordinate grids
-        theta = np.linspace(0, np.pi, n_theta)
-        phi = np.linspace(0, 2 * np.pi, n_phi)
-        phi_grid, theta_grid = np.meshgrid(phi, theta)
-        
+        # Parse the alm values (they're stored as string representations of complex numbers)
         alm = {}
+        for _, row in df.iterrows():
+            l = int(row['l'])
+            m = int(row['m'])
+            
+            # Convert string representation to complex number
+            # The format is like "(0.15952343275779984+0j)"
+            alm_str = str(row['alm'])
+            alm_value = complex(alm_str)
+            
+            alm[(l, m)] = alm_value
         
-        print(f"Computing spherical harmonic coefficients (lmax={self.lmax})...")
+        # Update lmax based on actual data
+        actual_lmax = max(l for l, m in alm.keys())
+        self.lmax = actual_lmax
         
-        start_l = 0 if not ('start_l' in locals()) else start_l
-        for l in range(start_l, self.lmax + 1):
-            for m in range(-l, l + 1):
-                # Compute spherical harmonic
-                ylm = sph_harm(m, l, phi_grid, theta_grid)
-                
-                # Integration with proper weighting
-                integrand = br_photosphere * np.conj(ylm) * np.sin(theta_grid)
-                
-                # Numerical integration (trapezoidal rule approximation)
-                alm[(l, m)] = np.sum(integrand) * (np.pi / n_theta) * (2 * np.pi / n_phi)
-                
-            if (l + 1) % 5 == 0:
-                print(f"  Computed up to l={l}")
-        
-        print(f"✓ Computed {len(alm)} coefficients")
-        
-        # Save checkpoint
-        if checkpoint_path:
-            try:
-                checkpoint_data = {'lmax': self.lmax, 'alm': alm}
-                with open(checkpoint_path, 'wb') as f:
-                    pickle.dump(checkpoint_data, f)
-                print(f"✓ Saved checkpoint to {checkpoint_path}")
-            except Exception as e:
-                print(f"⚠ Could not save checkpoint: {e}")
+        print(f"✓ Loaded {len(alm)} coefficients")
+        print(f"  lmax = {self.lmax}")
+        print(f"  Coefficient range: l ∈ [0, {actual_lmax}], m ∈ [-l, l]")
         
         return alm
     
@@ -169,7 +92,7 @@ class PFSSExtrapolation:
             Magnetic field components in spherical coordinates
         """
         if self.alm is None:
-            raise ValueError("Must compute alm coefficients first")
+            raise ValueError("Must load alm coefficients first")
         
         Br = 0.0
         Btheta = 0.0
@@ -179,9 +102,10 @@ class PFSSExtrapolation:
             for m in range(-l, l + 1):
                 ylm = sph_harm(m, l, phi, theta)
                 
-                # PFSS radial dependence
+                # Get coefficient
                 g_lm = self.alm.get((l, m), 0.0)
                 
+                # PFSS radial dependence
                 # Potential field formula
                 C_l = (r**l - self.r_source**(2*l+1) / r**(l+1)) / \
                       (1 - self.r_source**(2*l+1))
@@ -190,15 +114,16 @@ class PFSSExtrapolation:
                 Br += g_lm * (l * r**(l-1) + (l+1) * self.r_source**(2*l+1) / r**(l+2)) / \
                       (1 - self.r_source**(2*l+1)) * ylm
                 
-                # Angular components would require derivatives of Ylm
-                # For field line tracing, we primarily need Br and can compute others
+                # For more accurate field line tracing, we should compute Btheta and Bphi
+                # These require derivatives of spherical harmonics
+                # For now, keeping the same structure as original code
         
         return Br.real, Btheta, Bphi
     
     def trace_field_line(self, r_start, theta_start, phi_start, 
                          max_steps=1000, step_size=0.01, direction=1):
         """
-        Trace a single magnetic field line using RK4 integration.
+        Trace a single magnetic field line using Euler integration.
         
         Parameters:
         -----------
@@ -224,7 +149,7 @@ class PFSSExtrapolation:
         r, theta, phi = r_start, theta_start, phi_start
         
         for step in range(max_steps):
-            # Simple Euler integration (could upgrade to RK4)
+            # Compute field at current point
             Br, Btheta, Bphi = self.compute_field_at_point(r, theta, phi)
             B_mag = np.sqrt(Br**2 + Btheta**2 + Bphi**2)
             
@@ -358,45 +283,28 @@ class PFSSExtrapolation:
         print(f"  File size: {Path(output_path).stat().st_size / 1024:.1f} KB")
 
 
-def process_fits_file(fits_path, output_json_path, lmax=20, n_lines=100):
+def process_single_cr(alm_csv_path, output_json_path, n_lines=100):
     """
-    Complete pipeline: FITS → PFSS computation → Field lines → JSON export.
+    Process a single Carrington rotation using precomputed alm coefficients.
     
     Parameters:
     -----------
-    fits_path : str
-        Path to input FITS magnetogram
+    alm_csv_path : str
+        Path to CSV file with precomputed alm values
     output_json_path : str
         Path for output JSON file
-    lmax : int
-        Spherical harmonic degree (20-60 recommended)
     n_lines : int
         Number of field lines to trace (100-500 recommended)
     """
     print(f"\n{'='*60}")
-    print(f"Processing: {fits_path}")
+    print(f"Processing: {alm_csv_path}")
     print(f"{'='*60}\n")
     
-    # Create checkpoint directory
-    checkpoint_dir = Path("checkpoints")
-    checkpoint_dir.mkdir(exist_ok=True)
+    # Initialize PFSS with high lmax (will be updated from CSV)
+    pfss = PFSSExtrapolationFromALM(lmax=85, r_source=2.5)
     
-    # Generate checkpoint filename based on input file
-    fits_stem = Path(fits_path).stem
-    checkpoint_path = checkpoint_dir / f"{fits_stem}_alm.pkl"
-    
-    # Initialize PFSS
-    pfss = PFSSExtrapolation(lmax=lmax, r_source=2.5)
-    
-    # Load FITS data
-    print("Loading FITS magnetogram...")
-    br_data = pfss.load_fits_magnetogram(fits_path)
-    print(f"✓ Loaded magnetogram: {br_data.shape}")
-    print(f"  Br range: [{br_data.min():.2f}, {br_data.max():.2f}] Gauss")
-    
-    # Compute spherical harmonic coefficients (with checkpointing)
-    pfss.alm = pfss.compute_alm_coefficients(br_data, checkpoint_path=str(checkpoint_path))
-    pfss.br_photosphere = br_data
+    # Load precomputed alm coefficients
+    pfss.alm = pfss.load_alm_from_csv(alm_csv_path)
     
     # Generate field lines
     field_lines = pfss.generate_field_lines(n_lines=n_lines)
@@ -407,26 +315,19 @@ def process_fits_file(fits_path, output_json_path, lmax=20, n_lines=100):
     print(f"\n{'='*60}")
     print("✓ Processing complete!")
     print(f"{'='*60}\n")
-    
-    # Optionally clean up checkpoint after successful completion
-    # if checkpoint_path.exists():
-    #     checkpoint_path.unlink()
-    #     print("✓ Cleaned up checkpoint file")
 
 
-def batch_process_all_fits(fits_dir="fits_files", output_dir="coronal_data", 
-                           lmax=30, n_lines=100, start_cr=2096, end_cr=2285):
+def batch_process_all_crs(alm_dir="alm_values", output_dir="coronal_data_lmax85", 
+                          n_lines=100, start_cr=2096, end_cr=2285):
     """
-    Batch process all FITS files in a directory.
+    Batch process all Carrington rotations using precomputed alm coefficients.
     
     Parameters:
     -----------
-    fits_dir : str
-        Directory containing FITS files
+    alm_dir : str
+        Directory containing CSV files with alm values (format: values_xxxx.csv)
     output_dir : str
         Directory to save coronal JSON files
-    lmax : int
-        Spherical harmonic degree
     n_lines : int
         Number of field lines to trace
     start_cr : int
@@ -434,41 +335,45 @@ def batch_process_all_fits(fits_dir="fits_files", output_dir="coronal_data",
     end_cr : int
         Ending Carrington rotation number
     """
-    fits_path = Path(fits_dir)
+    alm_path = Path(alm_dir)
     output_path = Path(output_dir)
     
     # Create output directory
     output_path.mkdir(exist_ok=True)
     
-    # Find all FITS files
-    fits_files = sorted(fits_path.glob("*.fits"))
+    # Find all CSV files with alm values
+    alm_files = sorted(alm_path.glob("values_*.csv"))
     
-    if not fits_files:
-        print(f"❌ No FITS files found in {fits_dir}")
+    if not alm_files:
+        print(f"❌ No alm CSV files found in {alm_dir}")
+        print(f"   Expected format: values_xxxx.csv")
         return
     
     print(f"\n{'='*60}")
-    print(f"BATCH PROCESSING: Found {len(fits_files)} FITS files")
+    print(f"BATCH PROCESSING: Found {len(alm_files)} alm CSV files")
     print(f"{'='*60}\n")
     
     # Track progress
-    total_files = len(fits_files)
+    total_files = len(alm_files)
     processed = 0
     skipped = 0
     failed = 0
     
-    for idx, fits_file in enumerate(fits_files, 1):
-        # Extract CR number from filename (e.g., hmi.Synoptic_Mr_small.2240.fits)
+    for idx, alm_file in enumerate(alm_files, 1):
+        # Extract CR number from filename (e.g., values_2240.csv)
         try:
-            cr_match = fits_file.stem.split('.')
-            cr_number = None
-            for part in cr_match:
-                if part.isdigit():
-                    cr_number = int(part)
-                    break
+            filename = alm_file.stem  # 'values_2240'
+            parts = filename.split('_')
             
-            if cr_number is None or cr_number < start_cr or cr_number > end_cr:
-                print(f"[{idx}/{total_files}] ⏭️  Skipping {fits_file.name} (CR out of range)")
+            if len(parts) < 2 or not parts[1].isdigit():
+                print(f"[{idx}/{total_files}] ⚠️  Skipping {alm_file.name} (invalid filename format)")
+                skipped += 1
+                continue
+            
+            cr_number = int(parts[1])
+            
+            if cr_number < start_cr or cr_number > end_cr:
+                print(f"[{idx}/{total_files}] ⏭️  Skipping CR {cr_number} (out of range)")
                 skipped += 1
                 continue
             
@@ -481,14 +386,13 @@ def batch_process_all_fits(fits_dir="fits_files", output_dir="coronal_data",
                 continue
             
             print(f"\n[{idx}/{total_files}] Processing CR {cr_number}...")
-            print(f"Input:  {fits_file}")
+            print(f"Input:  {alm_file}")
             print(f"Output: {output_json}")
             
             # Process the file
-            process_fits_file(
-                fits_path=str(fits_file),
+            process_single_cr(
+                alm_csv_path=str(alm_file),
                 output_json_path=str(output_json),
-                lmax=lmax,
                 n_lines=n_lines
             )
             
@@ -496,7 +400,9 @@ def batch_process_all_fits(fits_dir="fits_files", output_dir="coronal_data",
             print(f"✓ Successfully processed CR {cr_number} ({processed}/{total_files})")
             
         except Exception as e:
-            print(f"❌ Failed to process {fits_file.name}: {e}")
+            print(f"❌ Failed to process {alm_file.name}: {e}")
+            import traceback
+            traceback.print_exc()
             failed += 1
             continue
     
@@ -504,33 +410,32 @@ def batch_process_all_fits(fits_dir="fits_files", output_dir="coronal_data",
     print(f"\n{'='*60}")
     print(f"BATCH PROCESSING COMPLETE")
     print(f"{'='*60}")
-    print(f"Total files found:    {total_files}")
+    print(f"Total files found:      {total_files}")
     print(f"Successfully processed: {processed}")
-    print(f"Skipped:              {skipped}")
-    print(f"Failed:               {failed}")
+    print(f"Skipped:                {skipped}")
+    print(f"Failed:                 {failed}")
     print(f"{'='*60}\n")
 
 
 # Example usage
 if __name__ == "__main__":
     # ============================================================
-    # BATCH PROCESS ALL FITS FILES (CR 2096-2285)
+    # BATCH PROCESS ALL CARRINGTON ROTATIONS (CR 2096-2285)
+    # Using precomputed alm coefficients (lmax=85)
     # ============================================================
-    batch_process_all_fits(
-        fits_dir="fits_files",      # Folder containing your FITS files
-        output_dir="coronal_data",  # Where to save JSON files
-        lmax=30,                    # Spherical harmonic degree (30 is good balance)
-        n_lines=100,                # Number of field lines (100 for speed, 500 for detail)
-        start_cr=2096,              # Starting Carrington rotation
-        end_cr=2285                 # Ending Carrington rotation
+    batch_process_all_crs(
+        alm_dir="alm_values",              # Folder with values_xxxx.csv files
+        output_dir="coronal_data_lmax85",  # Where to save JSON files
+        n_lines=100,                       # Number of field lines (100-500)
+        start_cr=2096,                     # Starting Carrington rotation
+        end_cr=2285                        # Ending Carrington rotation
     )
     
     # ============================================================
-    # OR PROCESS SINGLE FILE
+    # OR PROCESS SINGLE CARRINGTON ROTATION
     # ============================================================
-    # process_fits_file(
-    #     fits_path="fits_files/hmi.Synoptic_Mr_small.2240.fits",
-    #     output_json_path="coronal_data/cr2240_coronal.json",
-    #     lmax=30,
+    # process_single_cr(
+    #     alm_csv_path="alm_values/values_2240.csv",
+    #     output_json_path="coronal_data_lmax85/cr2240_coronal.json",
     #     n_lines=100
     # )
