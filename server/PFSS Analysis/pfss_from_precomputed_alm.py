@@ -317,7 +317,7 @@ def process_single_cr(alm_csv_path, output_json_path, n_lines=100):
     print(f"{'='*60}\n")
 
 
-def batch_process_all_crs(alm_dir="alm_values", output_dir="coronal_data_lmax85", 
+def batch_process_all_crs(alm_dir="alm values", output_dir="coronal_data_lmax85", 
                           n_lines=100, start_cr=2096, end_cr=2285):
     """
     Batch process all Carrington rotations using precomputed alm coefficients.
@@ -424,7 +424,7 @@ if __name__ == "__main__":
     # Using precomputed alm coefficients (lmax=85)
     # ============================================================
     batch_process_all_crs(
-        alm_dir="alm_values",              # Folder with values_xxxx.csv files
+        alm_dir="alm values",              # Folder with values_xxxx.csv files
         output_dir="coronal_data_lmax85",  # Where to save JSON files
         n_lines=100,                       # Number of field lines (100-500)
         start_cr=2096,                     # Starting Carrington rotation
