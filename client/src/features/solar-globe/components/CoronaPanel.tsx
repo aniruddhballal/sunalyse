@@ -70,7 +70,7 @@ export default function CoronaPanel({
         {isLoadingCoronal 
           ? 'Loading Coronal Data...' 
           : showCoronalLines 
-            ? '✓ Field Lines Active' 
+            ? 'Field Lines Active' 
             : 'Load Field Lines'}
       </button>
 
