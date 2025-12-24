@@ -565,20 +565,20 @@ if __name__ == "__main__":
     # ============================================================
     # COMPARE SINGLE CR
     # ============================================================
-    compare_single_cr(
-        lmax30_path=r"D:\engg\2025wintr\Solar\Sunalyse\server\PFSS Analysis\coronal_data\cr2096_coronal.json",
-        lmax85_path=r"D:\engg\2025wintr\Solar\Sunalyse\server\PFSS Analysis\coronal_data_lmax85\cr2096_coronal.json",
-        cr_number=2096,
-        output_dir="comparison_results"
-    )
+    # compare_single_cr(
+    #     lmax30_path=r"D:\engg\2025wintr\Solar\Sunalyse\server\PFSS Analysis\coronal_data\cr2096_coronal.json",
+    #     lmax85_path=r"D:\engg\2025wintr\Solar\Sunalyse\server\PFSS Analysis\coronal_data_lmax85\cr2096_coronal.json",
+    #     cr_number=2096,
+    #     output_dir="comparison_results"
+    # )
     
     # ============================================================
-    # OR BATCH COMPARE ALL CRs
+    # BATCH COMPARE CR 2096-2100
     # ============================================================
-    # batch_compare_all_crs(
-    #     lmax30_dir=r"D:\engg\2025wintr\Solar\Sunalyse\server\PFSS Analysis\coronal_data",
-    #     lmax85_dir=r"D:\engg\2025wintr\Solar\Sunalyse\server\PFSS Analysis\coronal_data_lmax85",
-    #     output_dir="comparison_results",
-    #     start_cr=2096,
-    #     end_cr=2285
-    # )
+    batch_compare_all_crs(
+        lmax30_dir=r"D:\engg\2025wintr\Solar\Sunalyse\server\PFSS Analysis\coronal_data",
+        lmax85_dir=r"D:\engg\2025wintr\Solar\Sunalyse\server\PFSS Analysis\coronal_data_lmax85",
+        output_dir="comparison_results",
+        start_cr=2096,
+        end_cr=2100
+    )
