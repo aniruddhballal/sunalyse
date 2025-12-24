@@ -1,0 +1,46 @@
+======================================================================
+CORONAL FIELD LINE COMPARISON: lmax=30 vs lmax=85
+======================================================================
+
+METADATA:
+  lmax=30: 30 (n_lines=100)
+  lmax=85: 85 (n_lines=100)
+  Spherical harmonic coefficients: 961 → 7396
+  Coefficient increase: 669.6%
+
+FIELD LINE LENGTHS:
+  Mean length (lmax=30): 6.4300 solar radii
+  Mean length (lmax=85): 7.2800 solar radii
+  Mean absolute difference: 2.8900 solar radii
+  Mean relative difference: 134.87%
+  Max absolute difference: 8.5000 solar radii
+  Std deviation of diff: 4.8829
+
+MAGNETIC FIELD STRENGTHS:
+  Mean strength (lmax=30): 1.332188
+  Mean strength (lmax=85): 3.037558
+  Mean absolute difference: 1.984612
+  Mean relative difference: 685.07%
+  Max absolute difference: 20.520222
+
+POLARITY DISTRIBUTION:
+  lmax=30 - Open: 21 (21.0%)
+  lmax=30 - Closed: 79 (79.0%)
+  lmax=85 - Open: 12 (12.0%)
+  lmax=85 - Closed: 88 (88.0%)
+  Change in open field lines: -9
+  Change in closed field lines: 9
+
+GEOMETRIC DIFFERENCES (sample of 10 field lines):
+  Mean point-to-point distance: 0.1533 solar radii
+  Max point-to-point distance: 1.5000 solar radii
+  Avg std of distances: 0.0874 solar radii
+
+SUMMARY:
+  Higher resolution (lmax=85) shows:
+    • 134.9% change in field line lengths
+    • 685.1% change in magnetic field strengths
+    • Average geometric deviation of 0.153 solar radii
+    • 9 change in open/closed field line classification
+
+======================================================================
