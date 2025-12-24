@@ -46,7 +46,7 @@ export default function ViewerView({
   setShowSourceSurface
 }: ViewerViewProps) {
   const [show2DMap, setShow2DMap] = useState(false);
-  const [isRotating, setIsRotating] = useState(true);
+  const [isRotating, setIsRotating] = useState(false);
   const [useFixedScale, setUseFixedScale] = useState(false);
   const [fixedMin, setFixedMin] = useState('-500');
   const [fixedMax, setFixedMax] = useState('500');
