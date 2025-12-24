@@ -321,7 +321,7 @@ class CoronalFieldLineComparison:
         
         # Save to file if requested
         if output_file:
-            with open(output_file, 'w') as f:
+            with open(output_file, 'w', encoding='utf-8') as f:
                 f.write(report)
             print(f"✓ Report saved to {output_file}")
         
@@ -527,7 +527,7 @@ def batch_compare_all_crs(lmax30_dir, lmax85_dir, output_dir="comparison_results
     # Save summary
     if len(summary_stats) > 0:
         summary_file = output_path / "batch_comparison_summary.txt"
-        with open(summary_file, 'w') as f:
+        with open(summary_file, 'w', encoding='utf-8') as f:
             f.write("="*70 + "\n")
             f.write("BATCH COMPARISON SUMMARY\n")
             f.write("="*70 + "\n\n")
