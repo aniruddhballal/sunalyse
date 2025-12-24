@@ -56,3 +56,5 @@ Thumbs.db
 pending_tasks.txt
 server/PFSS Analysis/fits_files
 server/PFSS Analysis/alm values
+server/PFSS Analysis/coronal_data_lmax85
+server/PFSS Analysis/coronal_data
