@@ -1,0 +1,20 @@
+======================================================================
+BATCH COMPARISON SUMMARY
+======================================================================
+
+Total CRs processed: 5
+Total CRs skipped: 0
+
+AVERAGE DIFFERENCES ACROSS ALL CRs:
+  Mean length difference: 108.29%
+  Mean strength difference: 498.76%
+  Mean geometric distance: 0.2333 solar radii
+
+DETAILED RESULTS:
+CR       Length Diff %   Strength Diff %    Open Δ     Geom Dist   
+----------------------------------------------------------------------
+2096     134.87          685.07             -9         0.0000      
+2097     114.47          532.51             -3         0.2922      
+2098     77.92           446.83             -1         0.1455      
+2099     103.13          406.05             -6         0.4364      
+2100     111.07          423.33             -5         0.2922      
