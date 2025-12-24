@@ -36,9 +36,6 @@ router.get('/list', async (req: Request, res: Response) => {
 
 // Fetch FITS by Carrington rotation number
 router.get('/carrington/:rotationNumber', async (req: Request, res: Response) => {
-  const startTime = Date.now();
-  console.log(`[${new Date().toISOString()}] Request started for CR${req.params.rotationNumber}`);
-  
   try {
     const rotationNumber = parseInt(req.params.rotationNumber);
     
@@ -49,24 +46,19 @@ router.get('/carrington/:rotationNumber', async (req: Request, res: Response) =>
     const filename = `hmi.Synoptic_Mr_small.${rotationNumber}.fits`;
     const url = `${HF_BASE_URL}/${filename}`;
     
-    console.log(`[${Date.now() - startTime}ms] Fetching from HuggingFace...`);
     const hfResponse = await fetch(url);
-    console.log(`[${Date.now() - startTime}ms] HuggingFace responded, streaming to client...`);
     
     if (!hfResponse.ok) {
-      return res.status(404).json({ error: `No FITS file found for rotation ${rotationNumber}` });
+      return res
+        .status(404)
+        .json({ error: `No FITS file found for rotation ${rotationNumber}` });
     }
     
     res.setHeader('Content-Type', 'application/fits');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    
     hfResponse.body.pipe(res);
-    
-    res.on('finish', () => {
-      console.log(`[${Date.now() - startTime}ms] Response complete`);
-    });
   } catch (error) {
-    console.error(`[${Date.now() - startTime}ms] Error:`, error);
+    console.error(error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
