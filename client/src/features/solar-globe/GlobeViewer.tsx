@@ -36,7 +36,7 @@ export default function GlobeViewer({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvas2DRef = useRef<HTMLCanvasElement | null>(null);
   
-  // Use Three.js hook for 3D rendering (now with coronal field lines)
+  // Use Three.js hook for 3D rendering (now with coronal field lines and geographic poles)
   useThreeScene(
     containerRef,
     fitsData,

@@ -12,12 +12,11 @@ interface ThreeSceneRef {
   fieldLineGroup: THREE.Group;
   oldFieldLineGroup: THREE.Group;
   sourceSurface: THREE.Mesh;
-  northPoleMarker: THREE.Group;
-  southPoleMarker: THREE.Group;
+  poleAxesGroup: THREE.Group;
   animationId: number;
   isDragging: boolean;
   pausedForTransition: boolean;
-  cameraDistance: number; // Track current zoom level
+  cameraDistance: number;
 }
 
 interface TransitionRef {
@@ -36,6 +35,50 @@ interface FieldLineTransitionRef {
 
 const easeInOutCubic = (t: number): number => {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+};
+
+const createPoleAxes = (): THREE.Group => {
+  const group = new THREE.Group();
+  
+  const axisLength = 0.5; // Length extending from surface
+  
+  // North pole axis (blue with arrow)
+  const northPoints = [
+    new THREE.Vector3(0, 1, 0),           // Start at surface
+    new THREE.Vector3(0, 1 + axisLength, 0) // Extend outward
+  ];
+  const northGeometry = new THREE.BufferGeometry().setFromPoints(northPoints);
+  const northMaterial = new THREE.LineBasicMaterial({ 
+    color: 0x4444ff, 
+    linewidth: 2 
+  });
+  const northLine = new THREE.Line(northGeometry, northMaterial);
+  group.add(northLine);
+  
+  // Arrow head for north pole
+  const arrowLength = 0.1;
+  const arrowWidth = 0.05;
+  const arrowGeometry = new THREE.ConeGeometry(arrowWidth, arrowLength, 8);
+  const arrowMaterial = new THREE.MeshBasicMaterial({ color: 0x4444ff });
+  const arrow = new THREE.Mesh(arrowGeometry, arrowMaterial);
+  arrow.position.set(0, 1 + axisLength, 0);
+  arrow.rotation.x = 0; // Points up (default orientation)
+  group.add(arrow);
+  
+  // South pole axis (red, no arrow)
+  const southPoints = [
+    new THREE.Vector3(0, -1, 0),           // Start at surface
+    new THREE.Vector3(0, -1 - axisLength, 0) // Extend outward
+  ];
+  const southGeometry = new THREE.BufferGeometry().setFromPoints(southPoints);
+  const southMaterial = new THREE.LineBasicMaterial({ 
+    color: 0xff4444, 
+    linewidth: 2 
+  });
+  const southLine = new THREE.Line(southGeometry, southMaterial);
+  group.add(southLine);
+  
+  return group;
 };
 
 export const useThreeScene = (
@@ -63,39 +106,6 @@ export const useThreeScene = (
   useEffect(() => {
     isRotatingRef.current = isRotating;
   }, [isRotating]);
-
-  const createPoleMarker = (label: string, color: number, position: THREE.Vector3): THREE.Group => {
-    const group = new THREE.Group();
-    
-    // Create sphere marker
-    const sphereGeometry = new THREE.SphereGeometry(0.05, 16, 16);
-    const sphereMaterial = new THREE.MeshBasicMaterial({ color: color });
-    const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
-    group.add(sphere);
-    
-    // Create text sprite
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d')!;
-    canvas.width = 128;
-    canvas.height = 128;
-    
-    context.fillStyle = `#${color.toString(16).padStart(6, '0')}`;
-    context.font = 'Bold 80px Arial';
-    context.textAlign = 'center';
-    context.textBaseline = 'middle';
-    context.fillText(label, 64, 64);
-    
-    const texture = new THREE.CanvasTexture(canvas);
-    const spriteMaterial = new THREE.SpriteMaterial({ map: texture });
-    const sprite = new THREE.Sprite(spriteMaterial);
-    sprite.scale.set(0.3, 0.3, 1);
-    sprite.position.set(0, 0.15, 0); // Offset above the sphere
-    group.add(sprite);
-    
-    group.position.copy(position);
-    
-    return group;
-  };
 
   const initThreeJS = (fitsData: FITSData) => {
     if (!containerRef.current) return;
@@ -147,14 +157,11 @@ export const useThreeScene = (
     const sourceSurface = new THREE.Mesh(sourceSurfaceGeometry, sourceSurfaceMaterial);
     sourceSurface.visible = false;
     scene.add(sourceSurface);
-
-    // Create geographic pole markers
-    const northPoleMarker = createPoleMarker('N', 0x4444ff, new THREE.Vector3(0, 1, 0)); // Blue for North
-    const southPoleMarker = createPoleMarker('S', 0xff4444, new THREE.Vector3(0, -1, 0)); // Red for South
-    northPoleMarker.visible = showGeographicPoles;
-    southPoleMarker.visible = showGeographicPoles;
-    scene.add(northPoleMarker);
-    scene.add(southPoleMarker);
+    
+    // Create geographic pole axes
+    const poleAxesGroup = createPoleAxes();
+    poleAxesGroup.visible = showGeographicPoles;
+    scene.add(poleAxesGroup);
     
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
     scene.add(ambientLight);
@@ -246,17 +253,15 @@ export const useThreeScene = (
       sphere.rotation.y += deltaX * 0.01;
       sphere.rotation.x += deltaY * 0.01;
       
-      // Rotate field lines and source surface with the sphere
+      // Rotate field lines, source surface, and pole axes with the sphere
       fieldLineGroup.rotation.y = sphere.rotation.y;
       fieldLineGroup.rotation.x = sphere.rotation.x;
       oldFieldLineGroup.rotation.y = sphere.rotation.y;
       oldFieldLineGroup.rotation.x = sphere.rotation.x;
       sourceSurface.rotation.y = sphere.rotation.y;
       sourceSurface.rotation.x = sphere.rotation.x;
-      northPoleMarker.rotation.y = sphere.rotation.y; // Add this
-      northPoleMarker.rotation.x = sphere.rotation.x; // Add this
-      southPoleMarker.rotation.y = sphere.rotation.y; // Add this
-      southPoleMarker.rotation.x = sphere.rotation.x; // Add this
+      poleAxesGroup.rotation.y = sphere.rotation.y;
+      poleAxesGroup.rotation.x = sphere.rotation.x;
       
       previousMousePosition = { x: e.clientX, y: e.clientY };
     };
@@ -313,17 +318,15 @@ export const useThreeScene = (
         sphere.rotation.y += deltaX * 0.01;
         sphere.rotation.x += deltaY * 0.01;
         
-        // Rotate field lines and source surface with the sphere
+        // Rotate field lines, source surface, and pole axes with the sphere
         fieldLineGroup.rotation.y = sphere.rotation.y;
         fieldLineGroup.rotation.x = sphere.rotation.x;
         oldFieldLineGroup.rotation.y = sphere.rotation.y;
         oldFieldLineGroup.rotation.x = sphere.rotation.x;
         sourceSurface.rotation.y = sphere.rotation.y;
         sourceSurface.rotation.x = sphere.rotation.x;
-        northPoleMarker.rotation.y = sphere.rotation.y; // Add this
-        northPoleMarker.rotation.x = sphere.rotation.x; // Add this
-        southPoleMarker.rotation.y = sphere.rotation.y; // Add this
-        southPoleMarker.rotation.x = sphere.rotation.x; // Add this
+        poleAxesGroup.rotation.y = sphere.rotation.y;
+        poleAxesGroup.rotation.x = sphere.rotation.x;
         
         previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
       }
@@ -423,17 +426,15 @@ export const useThreeScene = (
       
       if (shouldRotate) {
         sphere.rotation.y += 0.0005;
-        // Rotate field lines and source surface with the sphere
+        // Rotate field lines, source surface, and pole axes with the sphere
         fieldLineGroup.rotation.y = sphere.rotation.y;
         fieldLineGroup.rotation.x = sphere.rotation.x;
         oldFieldLineGroup.rotation.y = sphere.rotation.y;
         oldFieldLineGroup.rotation.x = sphere.rotation.x;
         sourceSurface.rotation.y = sphere.rotation.y;
         sourceSurface.rotation.x = sphere.rotation.x;
-        northPoleMarker.rotation.y = sphere.rotation.y; // Add this
-        northPoleMarker.rotation.x = sphere.rotation.x; // Add this
-        southPoleMarker.rotation.y = sphere.rotation.y; // Add this
-        southPoleMarker.rotation.x = sphere.rotation.x; // Add this
+        poleAxesGroup.rotation.y = sphere.rotation.y;
+        poleAxesGroup.rotation.x = sphere.rotation.x;
       }
       
       renderer.render(scene, camera);
@@ -453,8 +454,7 @@ export const useThreeScene = (
       fieldLineGroup,
       oldFieldLineGroup,
       sourceSurface,
-      northPoleMarker, // Add this
-  southPoleMarker, // Add this
+      poleAxesGroup,
       animationId: 0, 
       isDragging: false,
       pausedForTransition: false,
@@ -711,11 +711,9 @@ export const useThreeScene = (
     sceneRef.current.sourceSurface.visible = showCoronalLines && showSourceSurface;
   }, [showCoronalLines, showSourceSurface]);
 
-  // Handle geographic pole visibility
+  // Handle geographic pole axes visibility
   useEffect(() => {
     if (!sceneRef.current) return;
-    sceneRef.current.northPoleMarker.visible = showGeographicPoles;
-    sceneRef.current.southPoleMarker.visible = showGeographicPoles;
+    sceneRef.current.poleAxesGroup.visible = showGeographicPoles;
   }, [showGeographicPoles]);
-
 };
