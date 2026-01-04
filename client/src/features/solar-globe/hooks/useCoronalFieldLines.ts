@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { api } from '../../../services/api';
 
 export interface FieldLine {
   points: [number, number, number][];
@@ -28,20 +29,8 @@ export const useCoronalFieldLines = () => {
     setIsLoadingCoronal(true);
     setCoronalError('');
 
-    // Use environment variable or fallback to relative path
-    const API_BASE = import.meta.env?.VITE_API_BASE_URL || '';
-
     try {
-      const response = await fetch(`${API_BASE}/api/coronal/${crNumber}`);
-
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error(`Coronal data for CR ${crNumber} not found. May need to be computed.`);
-        }
-        throw new Error(`Failed to fetch coronal data: ${response.statusText}`);
-      }
-
-      const data = await response.json() as CoronalData;
+      const data = await api.fetchCoronalData(crNumber);
       setCoronalData(data);
       setShowCoronalLines(true); // Auto-show after successful load
     } catch (err) {

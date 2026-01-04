@@ -1,12 +1,7 @@
 import { useState } from 'react';
 import { parseFITS } from '../fits/fitsUtils';
 import type { FITSData } from '../fits/types';
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL;
-
-if (!API_BASE) {
-  throw new Error('VITE_API_BASE_URL is not defined');
-}
+import { api } from '../../../services/api';
 
 export const useCarringtonData = () => {
   const [carringtonNumber, setCarringtonNumber] = useState('');
@@ -26,7 +21,7 @@ export const useCarringtonData = () => {
       setFetchError('Carrington rotation number must be between 2096 and 2285');
       return;
     }
-
+    
     setFetchError('');
     
     if (isNavigation) {
@@ -37,20 +32,12 @@ export const useCarringtonData = () => {
     }
     
     setDataSource(`CR${rotationNum}.fits`);
-
+    
     try {
       if (!isNavigation) {
-        const response = await fetch(
-          `${API_BASE}/api/fits/carrington/${rotationNum}`
-        );
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch CR${rotationNum}: ${response.statusText}`);
-        }
-
-        const blob = await response.blob();
+        const blob = await api.fetchCarringtonFits(rotationNum);
         const file = new File([blob], `CR${rotationNum}.fits`, { type: 'application/fits' });
-
+        
         setIsFetching(false);
         setIsProcessing(true);
         
@@ -60,15 +47,7 @@ export const useCarringtonData = () => {
         setIsProcessing(false);
       } else {
         // For navigation, fetch and process in background
-        const response = await fetch(
-          `${API_BASE}/api/fits/carrington/${rotationNum}`
-        );
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch CR${rotationNum}: ${response.statusText}`);
-        }
-
-        const blob = await response.blob();
+        const blob = await api.fetchCarringtonFits(rotationNum);
         const file = new File([blob], `CR${rotationNum}.fits`, { type: 'application/fits' });
         
         const parsed = await parseFITS(file);
