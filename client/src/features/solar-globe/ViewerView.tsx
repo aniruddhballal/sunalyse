@@ -68,6 +68,7 @@ export default function ViewerView({
   const [useFixedScale, setUseFixedScale] = useState(false);
   const [fixedMin, setFixedMin] = useState('-500');
   const [fixedMax, setFixedMax] = useState('500');
+  const [showGeographicPoles, setShowGeographicPoles] = useState(true); // Add this line
 
   const handleNavigate = (direction: 'next' | 'prev') => {
     if (onNavigate && currentCarringtonNumber !== undefined) {
@@ -92,6 +93,7 @@ export default function ViewerView({
         useFixedScale={useFixedScale}
         fixedMin={parseFloat(fixedMin)}
         fixedMax={parseFloat(fixedMax)}
+        showGeographicPoles={showGeographicPoles}
       />
 
       {/* Unified Display Settings Panel */}
@@ -156,6 +158,12 @@ export default function ViewerView({
               className="text-white text-xs font-light hover:text-gray-300 transition-colors bg-black/70 backdrop-blur px-3 py-2.5 rounded"
             >
               {isRotating ? 'Pause' : 'Resume'}
+            </button>
+            <button
+              onClick={() => setShowGeographicPoles(!showGeographicPoles)}
+              className="text-white text-xs font-light hover:text-gray-300 transition-colors bg-black/70 backdrop-blur px-3 py-2.5 rounded col-span-2"
+            >
+              {showGeographicPoles ? 'Hide Poles' : 'Show Poles'}
             </button>
           </div>
           

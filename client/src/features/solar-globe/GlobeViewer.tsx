@@ -16,6 +16,7 @@ interface GlobeViewerProps {
   useFixedScale: boolean;
   fixedMin: number;
   fixedMax: number;
+  showGeographicPoles: boolean;
 }
 
 export default function GlobeViewer({ 
@@ -29,7 +30,8 @@ export default function GlobeViewer({
   showSourceSurface,
   useFixedScale,
   fixedMin,
-  fixedMax
+  fixedMax,
+  showGeographicPoles
 }: GlobeViewerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvas2DRef = useRef<HTMLCanvasElement | null>(null);
@@ -47,7 +49,8 @@ export default function GlobeViewer({
     showCoronalLines,
     showOpenLines,
     showClosedLines,
-    showSourceSurface
+    showSourceSurface,
+    showGeographicPoles
   );
   
   // Use 2D renderer hook for 2D canvas rendering
