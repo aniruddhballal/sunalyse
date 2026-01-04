@@ -73,12 +73,13 @@ export default function SolarMagneticFieldGlobe() {
     );
   };
   
-  const handleNavigate = async (direction: 'next' | 'prev') => {
+  const handleNavigate = async (direction: 'next' | 'prev', targetCR?: number) => {
     if (currentCRNumber === undefined) return;
     
-    const newCRNumber = direction === 'next' 
+    // Use provided targetCR or calculate next
+    const newCRNumber = targetCR ?? (direction === 'next' 
       ? currentCRNumber + 1 
-      : currentCRNumber - 1;
+      : currentCRNumber - 1);
     
     // If coronal data is currently loaded, fetch it simultaneously with FITS data
     if (coronalData !== null) {

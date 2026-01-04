@@ -4,12 +4,30 @@ import DisplaySettingsPanel from './components/DisplaySettingsPanel';
 import type { FITSData } from './fits/types';
 import type { CoronalData } from './hooks/useCoronalFieldLines';
 
+// Define CR gaps where no satellite data exists
+const CR_GAPS = [
+  { start: 2119, end: 2127 }, // No satellite data
+];
+
+const getNextValidCR = (current: number, direction: 'next' | 'prev'): number => {
+  let next = direction === 'next' ? current + 1 : current - 1;
+  
+  // Check if next falls in any gap and skip it
+  for (const gap of CR_GAPS) {
+    if (next >= gap.start && next <= gap.end) {
+      next = direction === 'next' ? gap.end + 1 : gap.start - 1;
+    }
+  }
+  
+  return next;
+};
+
 interface ViewerViewProps {
   fitsData: FITSData;
   dataSource: string;
   onReset: () => void;
   currentCarringtonNumber?: number;
-  onNavigate?: (direction: 'next' | 'prev') => void;
+  onNavigate?: (direction: 'next' | 'prev', targetCR?: number) => void;
   isNavigating?: boolean;
   coronalData: CoronalData | null;
   isLoadingCoronal: boolean;
@@ -52,8 +70,9 @@ export default function ViewerView({
   const [fixedMax, setFixedMax] = useState('500');
 
   const handleNavigate = (direction: 'next' | 'prev') => {
-    if (onNavigate) {
-      onNavigate(direction);
+    if (onNavigate && currentCarringtonNumber !== undefined) {
+      const nextCR = getNextValidCR(currentCarringtonNumber, direction);
+      onNavigate(direction, nextCR);
     }
   };
 
