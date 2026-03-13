@@ -33,7 +33,7 @@ def compare_metadata(a, b):
         match = "✓" if va == vb else "✗"
         if va != vb:
             all_match = False
-        print(f"  {match}  {key}: {va}  vs  {vb}")
+        print(f"  {match}  {key}: {va}  (A)  vs  {vb}  (B)")
 
     return all_match
 
@@ -46,7 +46,7 @@ def compare_field_lines(a, b):
     lines_a = a["fieldLines"]
     lines_b = b["fieldLines"]
 
-    print(f"  Count: {len(lines_a)} (unvectorised)  vs  {len(lines_b)} (vectorised)")
+    print(f"  Count: {len(lines_a)} (A)  vs  {len(lines_b)} (B)")
 
     if len(lines_a) != len(lines_b):
         print("  ✗ Different number of field lines — cannot do point-by-point comparison")
@@ -55,16 +55,16 @@ def compare_field_lines(a, b):
     # --- Polarity classification ---
     print("\n--- Polarity ---")
     polarity_mismatches = 0
-    open_a  = sum(1 for fl in lines_a if fl["polarity"] == "open")
-    open_b  = sum(1 for fl in lines_b if fl["polarity"] == "open")
+    open_a = sum(1 for fl in lines_a if fl["polarity"] == "open")
+    open_b = sum(1 for fl in lines_b if fl["polarity"] == "open")
     for i, (fla, flb) in enumerate(zip(lines_a, lines_b)):
         if fla["polarity"] != flb["polarity"]:
             polarity_mismatches += 1
-            print(f"  ✗ Line {i}: {fla['polarity']} vs {flb['polarity']}")
+            print(f"  ✗ Line {i}: {fla['polarity']} (A) vs {flb['polarity']} (B)")
     if polarity_mismatches == 0:
         print(f"  ✓ All {len(lines_a)} lines have matching polarity")
-    print(f"  Open:   {open_a} (unvectorised)  vs  {open_b} (vectorised)")
-    print(f"  Closed: {len(lines_a)-open_a} (unvectorised)  vs  {len(lines_b)-open_b} (vectorised)")
+    print(f"  Open:   {open_a} (A)  vs  {open_b} (B)")
+    print(f"  Closed: {len(lines_a)-open_a} (A)  vs  {len(lines_b)-open_b} (B)")
 
     # --- Point counts per line ---
     print("\n--- Points per line ---")
@@ -155,7 +155,7 @@ def overall_verdict(meta_match, a, b):
     max_coord_err = max(coord_errors) if coord_errors else 0
 
     if polarity_mismatches == 0 and max(point_count_diffs) == 0 and max_coord_err < ABS_TOL:
-        print("  ✓ IDENTICAL — vectorised output matches unvectorised exactly")
+        print("  ✓ IDENTICAL — both files match exactly")
     elif polarity_mismatches == 0 and max_coord_err < REL_TOL:
         print("  ~ EQUIVALENT — minor floating point differences only, physically identical")
     else:
@@ -167,8 +167,8 @@ def main():
     print("="*60)
     print("CORONAL JSON COMPARISON")
     print("="*60)
-    print(f"  A (unvectorised): {FILE_A}")
-    print(f"  B (vectorised):   {FILE_B}")
+    print(f"  A: {FILE_A}")
+    print(f"  B: {FILE_B}")
 
     # Check files exist
     for path in [FILE_A, FILE_B]:
