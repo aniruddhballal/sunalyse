@@ -3,6 +3,111 @@ from scipy.special import sph_harm
 import json
 import pandas as pd
 from pathlib import Path
+import multiprocessing as mp
+
+
+# ============================================================
+# MODULE-LEVEL WORKER STATE
+# These globals are set once per worker process via Pool initializer
+# so each worker has its own copy of the alm arrays without
+# re-pickling them on every task.
+# ============================================================
+
+_worker_ls     = None
+_worker_ms     = None
+_worker_g_lms  = None
+_worker_r_src  = None
+_worker_step   = None
+_worker_steps  = None
+
+
+def _worker_init(ls, ms, g_lms, r_source, step_size, max_steps):
+    """Initialise per-worker globals. Called once when each worker process starts."""
+    global _worker_ls, _worker_ms, _worker_g_lms, _worker_r_src, _worker_step, _worker_steps
+    _worker_ls    = ls
+    _worker_ms    = ms
+    _worker_g_lms = g_lms
+    _worker_r_src = r_source
+    _worker_step  = step_size
+    _worker_steps = max_steps
+
+
+def _compute_field(r, theta, phi):
+    """
+    Standalone (picklable) version of compute_field_at_point using worker globals.
+    Identical math to the class method — vectorised NumPy sph_harm call.
+    """
+    ls    = _worker_ls
+    ms    = _worker_ms
+    g_lms = _worker_g_lms
+    rs    = _worker_r_src
+
+    eps = 1e-5
+    sin_theta = np.sin(theta)
+    if abs(sin_theta) < 1e-10:
+        sin_theta = 1e-10
+
+    denom    = 1.0 - rs ** (2 * ls + 1)
+    dR_dr    = (ls * r**(ls-1) + (ls+1) * rs**(2*ls+1) / r**(ls+2)) / denom
+    R_over_r = (r**ls - rs**(2*ls+1) / r**(ls+1)) / (denom * r)
+
+    ylm         = sph_harm(ms, ls, phi, theta)
+    theta_p     = min(theta + eps, np.pi - eps)
+    theta_m_val = max(theta - eps, eps)
+    ylm_p       = sph_harm(ms, ls, phi, theta_p)
+    ylm_m       = sph_harm(ms, ls, phi, theta_m_val)
+    dYlm_dtheta = (ylm_p - ylm_m) / (theta_p - theta_m_val)
+    dYlm_dphi   = 1j * ms * ylm
+
+    Br     = np.sum(g_lms * dR_dr    * ylm)
+    Btheta = np.sum(g_lms * R_over_r * dYlm_dtheta)
+    Bphi   = np.sum(g_lms * R_over_r * dYlm_dphi / sin_theta)
+
+    return (-Br).real, (-Btheta).real, (-Bphi).real
+
+
+def _trace_one(r_start, theta_start, phi_start):
+    """
+    Trace a single field line (both directions) in a worker process.
+    Returns a dict with points, strengths, polarity — same format as
+    the class method, ready to be collected by the main process.
+    """
+    step_size = _worker_step
+    max_steps = _worker_steps
+    r_source  = _worker_r_src
+
+    def trace_direction(direction):
+        points, strengths = [[r_start, theta_start, phi_start]], []
+        r, theta, phi = r_start, theta_start, phi_start
+        for _ in range(max_steps):
+            Br, Btheta, Bphi = _compute_field(r, theta, phi)
+            B_mag = np.sqrt(Br**2 + Btheta**2 + Bphi**2)
+            if B_mag < 1e-10:
+                break
+            strengths.append(B_mag)
+            dr     = direction * step_size * Br / B_mag
+            dtheta = direction * step_size * Btheta / (r * B_mag)
+            dphi   = direction * step_size * Bphi / (r * np.sin(max(abs(theta), 1e-10)) * B_mag)
+            r += dr; theta += dtheta; phi = (phi + dphi) % (2 * np.pi)
+            if r < 1.0 or r > r_source:
+                break
+            if theta < 0.01 or theta > np.pi - 0.01:
+                break
+            points.append([r, theta, phi])
+        return points, strengths
+
+    pts_fwd, str_fwd = trace_direction(1)
+    pts_bwd, str_bwd = trace_direction(-1)
+
+    points    = pts_bwd[::-1] + pts_fwd[1:]
+    strengths = str_bwd[::-1] + str_fwd[1:]
+
+    r_end    = points[-1][0] if points else r_start
+    polarity = 'open' if r_end > r_source - 0.1 else 'closed'
+
+    return {'points': points, 'strengths': strengths, 'polarity': polarity}
+
+
 
 class PFSSExtrapolationFromALM:
     """
@@ -266,51 +371,31 @@ class PFSSExtrapolationFromALM:
         field_lines : list of dict
             Each dict contains 'points', 'strengths', 'polarity'
         """
-        field_lines = []
-        
-        print(f"Tracing {n_lines} field lines (step_size={step_size}, max_steps={max_steps})...")
-        
-        # Create starting points distributed across photosphere
+        # Create seed points distributed across photosphere
         n_theta = int(np.sqrt(n_lines))
-        n_phi = int(n_lines / n_theta)
-        
+        n_phi   = int(n_lines / n_theta)
         theta_starts = np.linspace(0.1, np.pi - 0.1, n_theta)
-        phi_starts = np.linspace(0, 2 * np.pi, n_phi, endpoint=False)
-        
-        count = 0
-        for theta_start in theta_starts:
-            for phi_start in phi_starts:
-                r_start = 1.0  # Start at photosphere
-                
-                # Trace in both directions
-                points_forward, strengths_forward = self.trace_field_line(
-                    r_start, theta_start, phi_start, direction=1,
-                    step_size=step_size, max_steps=max_steps
-                )
-                points_backward, strengths_backward = self.trace_field_line(
-                    r_start, theta_start, phi_start, direction=-1,
-                    step_size=step_size, max_steps=max_steps
-                )
-                
-                # Combine (backward reversed + forward)
-                points = points_backward[::-1] + points_forward[1:]
-                strengths = strengths_backward[::-1] + strengths_forward[1:]
-                
-                # Open = reached source surface; closed = returned to photosphere
-                r_end = points[-1][0] if len(points) > 0 else r_start
-                polarity = 'open' if r_end > self.r_source - 0.1 else 'closed'
-                
-                field_lines.append({
-                    'points': points,
-                    'strengths': strengths,
-                    'polarity': polarity
-                })
-                
-                count += 1
-                if count % 50 == 0:
-                    print(f"  Traced {count}/{n_lines} field lines")
+        phi_starts   = np.linspace(0, 2 * np.pi, n_phi, endpoint=False)
+        seeds = [
+            (1.0, float(th), float(ph))
+            for th in theta_starts
+            for ph in phi_starts
+        ]
 
-        open_count = sum(1 for fl in field_lines if fl['polarity'] == 'open')
+        n_workers = mp.cpu_count()
+        print(f"Tracing {len(seeds)} field lines across {n_workers} CPU cores "
+              f"(step_size={step_size}, max_steps={max_steps})...")
+
+        # Each worker process is initialised with the alm arrays and tracing
+        # parameters as globals — avoids re-pickling them on every task
+        with mp.Pool(
+            processes=n_workers,
+            initializer=_worker_init,
+            initargs=(self.ls, self.ms, self.g_lms, self.r_source, step_size, max_steps)
+        ) as pool:
+            field_lines = pool.starmap(_trace_one, seeds)
+
+        open_count   = sum(1 for fl in field_lines if fl['polarity'] == 'open')
         closed_count = len(field_lines) - open_count
         print(f"✓ Traced {len(field_lines)} field lines "
               f"({open_count} open, {closed_count} closed)")
