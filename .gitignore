@@ -54,7 +54,7 @@ Thumbs.db
 
 # personal stuff
 pending_tasks.txt
-server/PFSS Analysis/fits_files
-server/PFSS Analysis/alm values
-server/PFSS Analysis/coronal_data_lmax85
-server/PFSS Analysis/coronal_data
+client/src/PFSS Analysis/fits_files
+client/src/PFSS Analysis/alm values
+client/src/PFSS Analysis/coronal_data_lmax85
+client/src/PFSS Analysis/coronal_data

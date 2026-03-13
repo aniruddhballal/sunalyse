@@ -76,7 +76,31 @@ class PFSSExtrapolationFromALM:
     def compute_field_at_point(self, r, theta, phi):
         """
         Compute magnetic field vector B(r, theta, phi) using PFSS model.
-        
+
+        Previously only Br was computed (Btheta and Bphi were hardcoded to 0),
+        which caused all field lines to go straight radially outward with no
+        curvature. All three components are now computed correctly.
+
+        The magnetic field is B = -grad(Φ), where the PFSS scalar potential is:
+          Φ = Σ_lm  g_lm * R_l(r) * Y_lm(theta, phi)
+
+        The radial function enforcing the source surface boundary condition is:
+          R_l(r) = (r^l - r_s^(2l+1) / r^(l+1)) / (1 - r_s^(2l+1))
+
+        This gives three field components:
+
+          Br     = -dΦ/dr
+                 = -Σ_lm g_lm * dR_l/dr * Y_lm
+            where dR_l/dr = (l r^(l-1) + (l+1) r_s^(2l+1) / r^(l+2)) / (1 - r_s^(2l+1))
+
+          Btheta = -(1/r) dΦ/dtheta
+                 = -Σ_lm g_lm * (R_l/r) * dY_lm/dtheta
+            dY_lm/dtheta computed via central finite difference (eps=1e-5)
+
+          Bphi   = -(1/(r sinθ)) dΦ/dphi
+                 = -Σ_lm g_lm * (R_l/r) * (1/sinθ) * dY_lm/dphi
+            dY_lm/dphi = i*m * Y_lm  (exact analytic derivative)
+
         Parameters:
         -----------
         r : float
@@ -94,36 +118,60 @@ class PFSSExtrapolationFromALM:
         if self.alm is None:
             raise ValueError("Must load alm coefficients first")
         
-        Br = 0.0
-        Btheta = 0.0
-        Bphi = 0.0
+        Br = 0.0 + 0j
+        Btheta = 0.0 + 0j
+        Bphi = 0.0 + 0j
+
+        eps = 1e-5  # step size for central finite difference on dY/dtheta
+
+        # Clamp sin(theta) away from zero to avoid division by zero near poles
+        sin_theta = np.sin(theta)
+        if abs(sin_theta) < 1e-10:
+            sin_theta = 1e-10
         
-        for l in range(1, self.lmax + 1):  # l=0 doesn't contribute
+        for l in range(1, self.lmax + 1):  # l=0 doesn't contribute to B
+            # Precompute radial factors for this l (shared across all m)
+            rs = self.r_source
+            denom = 1.0 - rs ** (2 * l + 1)
+
+            # dR_l/dr — used for Br
+            dR_dr = (l * r ** (l - 1) + (l + 1) * rs ** (2 * l + 1) / r ** (l + 2)) / denom
+
+            # R_l(r) / r — used for Btheta and Bphi
+            R_over_r = (r ** l - rs ** (2 * l + 1) / r ** (l + 1)) / (denom * r)
+
             for m in range(-l, l + 1):
-                ylm = sph_harm(m, l, phi, theta)
-                
-                # Get coefficient
                 g_lm = self.alm.get((l, m), 0.0)
-                
-                # PFSS radial dependence
-                # Potential field formula
-                C_l = (r**l - self.r_source**(2*l+1) / r**(l+1)) / \
-                      (1 - self.r_source**(2*l+1))
-                
-                # Radial component
-                Br += g_lm * (l * r**(l-1) + (l+1) * self.r_source**(2*l+1) / r**(l+2)) / \
-                      (1 - self.r_source**(2*l+1)) * ylm
-                
-                # For more accurate field line tracing, we should compute Btheta and Bphi
-                # These require derivatives of spherical harmonics
-                # For now, keeping the same structure as original code
-        
-        return Br.real, Btheta, Bphi
+                if g_lm == 0.0:
+                    continue
+
+                ylm = sph_harm(m, l, phi, theta)
+
+                # --- Br = -dΦ/dr ---
+                Br += g_lm * dR_dr * ylm
+
+                # --- Btheta = -(1/r) dΦ/dtheta ---
+                # Central finite difference for dY_lm/dtheta
+                theta_p = min(theta + eps, np.pi - eps)
+                theta_m = max(theta - eps, eps)
+                dYlm_dtheta = (sph_harm(m, l, phi, theta_p) - sph_harm(m, l, phi, theta_m)) / (theta_p - theta_m)
+                Btheta += g_lm * R_over_r * dYlm_dtheta
+
+                # --- Bphi = -(1/(r sinθ)) dΦ/dphi ---
+                # Analytic derivative: dY_lm/dphi = i*m * Y_lm
+                dYlm_dphi = 1j * m * ylm
+                Bphi += g_lm * R_over_r * dYlm_dphi / sin_theta
+
+        # Apply B = -grad(Φ) sign and take real part
+        return (-Br).real, (-Btheta).real, (-Bphi).real
     
     def trace_field_line(self, r_start, theta_start, phi_start, 
                          max_steps=1000, step_size=0.01, direction=1):
         """
         Trace a single magnetic field line using Euler integration.
+
+        Now uses all three field components (Br, Btheta, Bphi) so lines
+        curve correctly instead of going straight radially outward.
         
         Parameters:
         -----------
@@ -134,7 +182,7 @@ class PFSSExtrapolationFromALM:
         step_size : float
             Integration step size
         direction : int
-            +1 for forward, -1 for backward
+            +1 for forward (along B), -1 for backward (against B)
             
         Returns:
         --------
@@ -153,19 +201,22 @@ class PFSSExtrapolationFromALM:
             Br, Btheta, Bphi = self.compute_field_at_point(r, theta, phi)
             B_mag = np.sqrt(Br**2 + Btheta**2 + Bphi**2)
             
-            if B_mag < 1e-10:  # Avoid division by zero
+            if B_mag < 1e-10:  # Avoid division by zero in null field regions
                 break
             
             field_strengths.append(B_mag)
             
-            # Normalize and step
-            dr = direction * step_size * Br / B_mag
+            # Normalised Euler step in spherical coordinates
+            dr     = direction * step_size * Br / B_mag
             dtheta = direction * step_size * Btheta / (r * B_mag)
-            dphi = direction * step_size * Bphi / (r * np.sin(theta) * B_mag)
+            dphi   = direction * step_size * Bphi / (r * np.sin(max(abs(theta), 1e-10)) * B_mag)
             
-            r += dr
+            r     += dr
             theta += dtheta
-            phi += dphi
+            phi   += dphi
+
+            # Keep phi wrapped in [0, 2π]
+            phi = phi % (2 * np.pi)
             
             # Boundary conditions
             if r < 1.0 or r > self.r_source:  # Hit photosphere or source surface
@@ -177,9 +228,13 @@ class PFSSExtrapolationFromALM:
         
         return points, field_strengths
     
-    def generate_field_lines(self, n_lines=500):
+    def generate_field_lines(self, n_lines=100):
         """
         Generate multiple field lines across the solar surface.
+
+        Seeds n_lines starting points on a uniform grid across the photosphere
+        (sqrt(n_lines) points in theta × sqrt(n_lines) in phi), then traces
+        each one in both directions and classifies open vs closed.
         
         Parameters:
         -----------
@@ -219,7 +274,7 @@ class PFSSExtrapolationFromALM:
                 points = points_backward[::-1] + points_forward[1:]
                 strengths = strengths_backward[::-1] + strengths_forward[1:]
                 
-                # Determine if open or closed
+                # Open = reached source surface; closed = returned to photosphere
                 r_end = points[-1][0] if len(points) > 0 else r_start
                 polarity = 'open' if r_end > self.r_source - 0.1 else 'closed'
                 
@@ -232,8 +287,12 @@ class PFSSExtrapolationFromALM:
                 count += 1
                 if count % 50 == 0:
                     print(f"  Traced {count}/{n_lines} field lines")
+
+        open_count = sum(1 for fl in field_lines if fl['polarity'] == 'open')
+        closed_count = len(field_lines) - open_count
+        print(f"✓ Traced {len(field_lines)} field lines "
+              f"({open_count} open, {closed_count} closed)")
         
-        print(f"✓ Traced {len(field_lines)} field lines")
         return field_lines
     
     def spherical_to_cartesian(self, r, theta, phi):
@@ -264,7 +323,7 @@ class PFSSExtrapolationFromALM:
         }
         
         for fl in field_lines:
-            # Convert to Cartesian coordinates
+            # Convert to Cartesian coordinates for Three.js
             points_cartesian = [
                 self.spherical_to_cartesian(r, theta, phi)
                 for r, theta, phi in fl['points']
@@ -423,19 +482,19 @@ if __name__ == "__main__":
     # BATCH PROCESS ALL CARRINGTON ROTATIONS (CR 2096-2285)
     # Using precomputed alm coefficients (lmax=85)
     # ============================================================
-    batch_process_all_crs(
-        alm_dir="alm values",              # Folder with values_xxxx.csv files
-        output_dir="coronal_data_lmax85",  # Where to save JSON files
-        n_lines=100,                       # Number of field lines (100-500)
-        start_cr=2096,                     # Starting Carrington rotation
-        end_cr=2285                        # Ending Carrington rotation
-    )
+    # batch_process_all_crs(
+    #     alm_dir="alm values",              # Folder with values_xxxx.csv files
+    #     output_dir="coronal_data_lmax85",  # Where to save JSON files
+    #     n_lines=100,                       # Number of field lines (100-500)
+    #     start_cr=2096,                     # Starting Carrington rotation
+    #     end_cr=2285                        # Ending Carrington rotation
+    # )
     
     # ============================================================
     # OR PROCESS SINGLE CARRINGTON ROTATION
     # ============================================================
-    # process_single_cr(
-    #     alm_csv_path="alm_values/values_2240.csv",
-    #     output_json_path="coronal_data_lmax85/cr2240_coronal.json",
-    #     n_lines=100
-    # )
+    process_single_cr(
+        alm_csv_path="alm_values/values_2096.csv",
+        output_json_path="coronal_data_lmax85/cr2096_coronal.json",
+        n_lines=100
+    )
