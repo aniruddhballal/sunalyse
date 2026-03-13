@@ -165,7 +165,7 @@ class PFSSExtrapolationFromALM:
         # Apply B = -grad(Φ) sign and take real part
         return (-Br).real, (-Btheta).real, (-Bphi).real
     
-    def trace_field_line(self, r_start, theta_start, phi_start, 
+    def trace_field_line(self, r_start, theta_start, phi_start,
                          max_steps=1000, step_size=0.01, direction=1):
         """
         Trace a single magnetic field line using Euler integration.
@@ -228,7 +228,7 @@ class PFSSExtrapolationFromALM:
         
         return points, field_strengths
     
-    def generate_field_lines(self, n_lines=100):
+    def generate_field_lines(self, n_lines=100, step_size=0.01, max_steps=1000):
         """
         Generate multiple field lines across the solar surface.
 
@@ -240,6 +240,10 @@ class PFSSExtrapolationFromALM:
         -----------
         n_lines : int
             Number of field lines to trace
+        step_size : float
+            Integration step size — smaller = smoother, longer traces (default 0.01)
+        max_steps : int
+            Maximum steps per field line — increase alongside smaller step_size (default 1000)
             
         Returns:
         --------
@@ -248,7 +252,7 @@ class PFSSExtrapolationFromALM:
         """
         field_lines = []
         
-        print(f"Tracing {n_lines} field lines...")
+        print(f"Tracing {n_lines} field lines (step_size={step_size}, max_steps={max_steps})...")
         
         # Create starting points distributed across photosphere
         n_theta = int(np.sqrt(n_lines))
@@ -264,10 +268,12 @@ class PFSSExtrapolationFromALM:
                 
                 # Trace in both directions
                 points_forward, strengths_forward = self.trace_field_line(
-                    r_start, theta_start, phi_start, direction=1
+                    r_start, theta_start, phi_start, direction=1,
+                    step_size=step_size, max_steps=max_steps
                 )
                 points_backward, strengths_backward = self.trace_field_line(
-                    r_start, theta_start, phi_start, direction=-1
+                    r_start, theta_start, phi_start, direction=-1,
+                    step_size=step_size, max_steps=max_steps
                 )
                 
                 # Combine (backward reversed + forward)
@@ -342,7 +348,7 @@ class PFSSExtrapolationFromALM:
         print(f"  File size: {Path(output_path).stat().st_size / 1024:.1f} KB")
 
 
-def process_single_cr(alm_csv_path, output_json_path, n_lines=100):
+def process_single_cr(alm_csv_path, output_json_path, n_lines=100, step_size=0.01, max_steps=1000):
     """
     Process a single Carrington rotation using precomputed alm coefficients.
     
@@ -354,30 +360,47 @@ def process_single_cr(alm_csv_path, output_json_path, n_lines=100):
         Path for output JSON file
     n_lines : int
         Number of field lines to trace (100-500 recommended)
+    step_size : float
+        Integration step size — smaller = smoother, longer traces (default 0.01)
+    max_steps : int
+        Maximum steps per field line (default 1000)
     """
-    print(f"\n{'='*60}")
+    import time
+
+    print(f"\n{chr(61)*60}")
     print(f"Processing: {alm_csv_path}")
-    print(f"{'='*60}\n")
-    
+    print(f"{chr(61)*60}\n")
+
+    total_start = time.time()
+
     # Initialize PFSS with high lmax (will be updated from CSV)
     pfss = PFSSExtrapolationFromALM(lmax=85, r_source=2.5)
-    
+
     # Load precomputed alm coefficients
+    t0 = time.time()
     pfss.alm = pfss.load_alm_from_csv(alm_csv_path)
-    
+    print(f"  Load time:    {time.time() - t0:.1f}s")
+
     # Generate field lines
-    field_lines = pfss.generate_field_lines(n_lines=n_lines)
-    
+    t0 = time.time()
+    field_lines = pfss.generate_field_lines(n_lines=n_lines, step_size=step_size, max_steps=max_steps)
+    tracing_time = time.time() - t0
+    print(f"  Tracing time: {tracing_time:.1f}s  ({tracing_time/n_lines:.2f}s per line)")
+
     # Export for visualization
+    t0 = time.time()
     pfss.export_for_visualization(field_lines, output_json_path)
-    
-    print(f"\n{'='*60}")
-    print("✓ Processing complete!")
-    print(f"{'='*60}\n")
+    print(f"  Export time:  {time.time() - t0:.1f}s")
+
+    total_time = time.time() - total_start
+    print(f"\n{chr(61)*60}")
+    print(f"✓ Processing complete!  Total: {total_time:.1f}s ({total_time/60:.1f} min)")
+    print(f"{chr(61)*60}\n")
 
 
 def batch_process_all_crs(alm_dir="alm values", output_dir="coronal_data_lmax85", 
-                          n_lines=100, start_cr=2096, end_cr=2285):
+                          n_lines=100, step_size=0.01, max_steps=1000,
+                          start_cr=2096, end_cr=2285):
     """
     Batch process all Carrington rotations using precomputed alm coefficients.
     
@@ -389,6 +412,10 @@ def batch_process_all_crs(alm_dir="alm values", output_dir="coronal_data_lmax85"
         Directory to save coronal JSON files
     n_lines : int
         Number of field lines to trace
+    step_size : float
+        Integration step size — smaller = smoother, longer traces (default 0.01)
+    max_steps : int
+        Maximum steps per field line (default 1000)
     start_cr : int
         Starting Carrington rotation number
     end_cr : int
@@ -452,7 +479,9 @@ def batch_process_all_crs(alm_dir="alm values", output_dir="coronal_data_lmax85"
             process_single_cr(
                 alm_csv_path=str(alm_file),
                 output_json_path=str(output_json),
-                n_lines=n_lines
+                n_lines=n_lines,
+                step_size=step_size,
+                max_steps=max_steps
             )
             
             processed += 1
@@ -486,6 +515,8 @@ if __name__ == "__main__":
     #     alm_dir="alm values",              # Folder with values_xxxx.csv files
     #     output_dir="coronal_data_lmax85",  # Where to save JSON files
     #     n_lines=100,                       # Number of field lines (100-500)
+    #     step_size=0.01,                    # Integration step size (smaller = smoother)
+    #     max_steps=1000,                    # Max steps per line (increase with smaller step_size)
     #     start_cr=2096,                     # Starting Carrington rotation
     #     end_cr=2285                        # Ending Carrington rotation
     # )
@@ -494,7 +525,9 @@ if __name__ == "__main__":
     # OR PROCESS SINGLE CARRINGTON ROTATION
     # ============================================================
     process_single_cr(
-        alm_csv_path="alm_values/values_2096.csv",
-        output_json_path="coronal_data_lmax85/cr2096_coronal.json",
-        n_lines=100
+        alm_csv_path="alm_values/values_2097.csv",
+        output_json_path="coronal_data_lmax85/cr2097_coronal.json",
+        n_lines=200,
+        step_size=0.005,
+        max_steps=2000
     )
