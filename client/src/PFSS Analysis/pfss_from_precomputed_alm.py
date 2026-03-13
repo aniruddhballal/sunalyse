@@ -73,6 +73,31 @@ class PFSSExtrapolationFromALM:
         
         return alm
     
+    def prepare_arrays(self):
+        """
+        Convert the alm dict into flat NumPy arrays for vectorised computation.
+        Call this once after load_alm_from_csv — it pre-builds the arrays so
+        compute_field_at_point can do a single batched sph_harm call instead of
+        7396 sequential ones.
+
+        Builds:
+          self.ls      — array of l values, shape (N,)
+          self.ms      — array of m values, shape (N,)
+          self.g_lms   — array of complex coefficients, shape (N,)
+
+        where N = total number of (l,m) pairs with l >= 1.
+        """
+        ls, ms, g_lms = [], [], []
+        for (l, m), g in self.alm.items():
+            if l >= 1:  # l=0 doesn't contribute to B
+                ls.append(l)
+                ms.append(m)
+                g_lms.append(g)
+        self.ls    = np.array(ls,    dtype=np.int32)
+        self.ms    = np.array(ms,    dtype=np.int32)
+        self.g_lms = np.array(g_lms, dtype=np.complex128)
+        print(f"  Prepared {len(self.ls)} (l,m) pairs as NumPy arrays for vectorised computation")
+
     def compute_field_at_point(self, r, theta, phi):
         """
         Compute magnetic field vector B(r, theta, phi) using PFSS model.
@@ -80,6 +105,10 @@ class PFSSExtrapolationFromALM:
         Previously only Br was computed (Btheta and Bphi were hardcoded to 0),
         which caused all field lines to go straight radially outward with no
         curvature. All three components are now computed correctly.
+
+        This version is fully vectorised — all (l,m) pairs are processed in a
+        single batched sph_harm call instead of a Python loop over 7396 pairs.
+        Requires prepare_arrays() to have been called after load_alm_from_csv.
 
         The magnetic field is B = -grad(Φ), where the PFSS scalar potential is:
           Φ = Σ_lm  g_lm * R_l(r) * Y_lm(theta, phi)
@@ -117,10 +146,11 @@ class PFSSExtrapolationFromALM:
         """
         if self.alm is None:
             raise ValueError("Must load alm coefficients first")
-        
-        Br = 0.0 + 0j
-        Btheta = 0.0 + 0j
-        Bphi = 0.0 + 0j
+
+        ls    = self.ls      # shape (N,)
+        ms    = self.ms      # shape (N,)
+        g_lms = self.g_lms   # shape (N,)
+        rs    = self.r_source
 
         eps = 1e-5  # step size for central finite difference on dY/dtheta
 
@@ -128,39 +158,25 @@ class PFSSExtrapolationFromALM:
         sin_theta = np.sin(theta)
         if abs(sin_theta) < 1e-10:
             sin_theta = 1e-10
-        
-        for l in range(1, self.lmax + 1):  # l=0 doesn't contribute to B
-            # Precompute radial factors for this l (shared across all m)
-            rs = self.r_source
-            denom = 1.0 - rs ** (2 * l + 1)
 
-            # dR_l/dr — used for Br
-            dR_dr = (l * r ** (l - 1) + (l + 1) * rs ** (2 * l + 1) / r ** (l + 2)) / denom
+        # --- Radial factors, vectorised over all l values ---
+        denom   = 1.0 - rs ** (2 * ls + 1)                                            # shape (N,)
+        dR_dr   = (ls * r**(ls-1) + (ls+1) * rs**(2*ls+1) / r**(ls+2)) / denom       # shape (N,)
+        R_over_r = (r**ls - rs**(2*ls+1) / r**(ls+1)) / (denom * r)                  # shape (N,)
 
-            # R_l(r) / r — used for Btheta and Bphi
-            R_over_r = (r ** l - rs ** (2 * l + 1) / r ** (l + 1)) / (denom * r)
+        # --- Spherical harmonics, single batched call for all (l,m) pairs ---
+        ylm        = sph_harm(ms, ls, phi, theta)                                      # shape (N,)
+        theta_p    = min(theta + eps, np.pi - eps)
+        theta_m    = max(theta - eps, eps)
+        ylm_p      = sph_harm(ms, ls, phi, theta_p)                                   # shape (N,)
+        ylm_m      = sph_harm(ms, ls, phi, theta_m)                                   # shape (N,)
+        dYlm_dtheta = (ylm_p - ylm_m) / (theta_p - theta_m)                          # shape (N,)
+        dYlm_dphi   = 1j * ms * ylm                                                   # shape (N,), analytic
 
-            for m in range(-l, l + 1):
-                g_lm = self.alm.get((l, m), 0.0)
-                if g_lm == 0.0:
-                    continue
-
-                ylm = sph_harm(m, l, phi, theta)
-
-                # --- Br = -dΦ/dr ---
-                Br += g_lm * dR_dr * ylm
-
-                # --- Btheta = -(1/r) dΦ/dtheta ---
-                # Central finite difference for dY_lm/dtheta
-                theta_p = min(theta + eps, np.pi - eps)
-                theta_m = max(theta - eps, eps)
-                dYlm_dtheta = (sph_harm(m, l, phi, theta_p) - sph_harm(m, l, phi, theta_m)) / (theta_p - theta_m)
-                Btheta += g_lm * R_over_r * dYlm_dtheta
-
-                # --- Bphi = -(1/(r sinθ)) dΦ/dphi ---
-                # Analytic derivative: dY_lm/dphi = i*m * Y_lm
-                dYlm_dphi = 1j * m * ylm
-                Bphi += g_lm * R_over_r * dYlm_dphi / sin_theta
+        # --- Sum contributions from all (l,m) pairs ---
+        Br     = np.sum(g_lms * dR_dr    * ylm)
+        Btheta = np.sum(g_lms * R_over_r * dYlm_dtheta)
+        Bphi   = np.sum(g_lms * R_over_r * dYlm_dphi / sin_theta)
 
         # Apply B = -grad(Φ) sign and take real part
         return (-Br).real, (-Btheta).real, (-Bphi).real
@@ -379,6 +395,7 @@ def process_single_cr(alm_csv_path, output_json_path, n_lines=100, step_size=0.0
     # Load precomputed alm coefficients
     t0 = time.time()
     pfss.alm = pfss.load_alm_from_csv(alm_csv_path)
+    pfss.prepare_arrays()
     print(f"  Load time:    {time.time() - t0:.1f}s")
 
     # Generate field lines
