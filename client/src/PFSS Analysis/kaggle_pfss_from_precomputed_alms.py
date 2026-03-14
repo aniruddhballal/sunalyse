@@ -106,6 +106,103 @@ import pandas as pd
 from scipy.special import sph_harm
 import json
 from pathlib import Path
+import multiprocessing as mp
+
+_worker_ls     = None
+_worker_ms     = None
+_worker_g_lms  = None
+_worker_r_src  = None
+_worker_step   = None
+_worker_steps  = None
+
+
+def _worker_init(ls, ms, g_lms, r_source, step_size, max_steps):
+    """Initialise per-worker globals. Called once when each worker process starts."""
+    global _worker_ls, _worker_ms, _worker_g_lms, _worker_r_src, _worker_step, _worker_steps
+    _worker_ls    = ls
+    _worker_ms    = ms
+    _worker_g_lms = g_lms
+    _worker_r_src = r_source
+    _worker_step  = step_size
+    _worker_steps = max_steps
+
+
+def _compute_field(r, theta, phi):
+    """
+    Standalone (picklable) version of compute_field_at_point using worker globals.
+    Identical math to the class method — vectorised NumPy sph_harm call.
+    """
+    ls    = _worker_ls
+    ms    = _worker_ms
+    g_lms = _worker_g_lms
+    rs    = _worker_r_src
+
+    eps = 1e-5
+    sin_theta = np.sin(theta)
+    if abs(sin_theta) < 1e-10:
+        sin_theta = 1e-10
+
+    denom    = 1.0 - rs ** (2 * ls + 1)
+    dR_dr    = (ls * r**(ls-1) + (ls+1) * rs**(2*ls+1) / r**(ls+2)) / denom
+    R_over_r = (r**ls - rs**(2*ls+1) / r**(ls+1)) / (denom * r)
+
+    ylm         = sph_harm(ms, ls, phi, theta)
+    theta_p     = min(theta + eps, np.pi - eps)
+    theta_m_val = max(theta - eps, eps)
+    ylm_p       = sph_harm(ms, ls, phi, theta_p)
+    ylm_m       = sph_harm(ms, ls, phi, theta_m_val)
+    dYlm_dtheta = (ylm_p - ylm_m) / (theta_p - theta_m_val)
+    dYlm_dphi   = 1j * ms * ylm
+
+    Br     = np.sum(g_lms * dR_dr    * ylm)
+    Btheta = np.sum(g_lms * R_over_r * dYlm_dtheta)
+    Bphi   = np.sum(g_lms * R_over_r * dYlm_dphi / sin_theta)
+
+    return (-Br).real, (-Btheta).real, (-Bphi).real
+
+
+def _trace_one(r_start, theta_start, phi_start):
+    """
+    Trace a single field line (both directions) in a worker process.
+    Returns a dict with points, strengths, polarity — same format as
+    the class method, ready to be collected by the main process.
+    """
+    step_size = _worker_step
+    max_steps = _worker_steps
+    r_source  = _worker_r_src
+
+    def trace_direction(direction):
+        points, strengths = [[r_start, theta_start, phi_start]], []
+        r, theta, phi = r_start, theta_start, phi_start
+        for _ in range(max_steps):
+            Br, Btheta, Bphi = _compute_field(r, theta, phi)
+            B_mag = np.sqrt(Br**2 + Btheta**2 + Bphi**2)
+            if B_mag < 1e-10:
+                break
+            strengths.append(B_mag)
+            dr     = direction * step_size * Br / B_mag
+            dtheta = direction * step_size * Btheta / (r * B_mag)
+            dphi   = direction * step_size * Bphi / (r * np.sin(max(abs(theta), 1e-10)) * B_mag)
+            r += dr; theta += dtheta; phi = (phi + dphi) % (2 * np.pi)
+            if r < 1.0 or r > r_source:
+                break
+            if theta < 0.01 or theta > np.pi - 0.01:
+                break
+            points.append([r, theta, phi])
+        return points, strengths
+
+    pts_fwd, str_fwd = trace_direction(1)
+    pts_bwd, str_bwd = trace_direction(-1)
+
+    points    = pts_bwd[::-1] + pts_fwd[1:]
+    strengths = str_bwd[::-1] + str_fwd[1:]
+
+    r_end    = points[-1][0] if points else r_start
+    polarity = 'open' if r_end > r_source - 0.1 else 'closed'
+
+    return {'points': points, 'strengths': strengths, 'polarity': polarity}
+
+
 
 print("✓ All packages imported successfully")
 
@@ -180,10 +277,63 @@ class PFSSExtrapolationFromALM:
         
         return alm
     
+    def prepare_arrays(self):
+        """
+        Convert the alm dict into flat NumPy arrays for vectorised computation.
+        Call this once after load_alm_from_csv — it pre-builds the arrays so
+        compute_field_at_point can do a single batched sph_harm call instead of
+        7396 sequential ones.
+
+        Builds:
+          self.ls      — array of l values, shape (N,)
+          self.ms      — array of m values, shape (N,)
+          self.g_lms   — array of complex coefficients, shape (N,)
+
+        where N = total number of (l,m) pairs with l >= 1.
+        """
+        ls, ms, g_lms = [], [], []
+        for (l, m), g in self.alm.items():
+            if l >= 1:  # l=0 doesn't contribute to B
+                ls.append(l)
+                ms.append(m)
+                g_lms.append(g)
+        self.ls    = np.array(ls,    dtype=np.int32)
+        self.ms    = np.array(ms,    dtype=np.int32)
+        self.g_lms = np.array(g_lms, dtype=np.complex128)
+        print(f"  Prepared {len(self.ls)} (l,m) pairs as NumPy arrays for vectorised computation")
+
     def compute_field_at_point(self, r, theta, phi):
         """
         Compute magnetic field vector B(r, theta, phi) using PFSS model.
-        
+
+        Previously only Br was computed (Btheta and Bphi were hardcoded to 0),
+        which caused all field lines to go straight radially outward with no
+        curvature. All three components are now computed correctly.
+
+        This version is fully vectorised — all (l,m) pairs are processed in a
+        single batched sph_harm call instead of a Python loop over 7396 pairs.
+        Requires prepare_arrays() to have been called after load_alm_from_csv.
+
+        The magnetic field is B = -grad(Φ), where the PFSS scalar potential is:
+          Φ = Σ_lm  g_lm * R_l(r) * Y_lm(theta, phi)
+
+        The radial function enforcing the source surface boundary condition is:
+          R_l(r) = (r^l - r_s^(2l+1) / r^(l+1)) / (1 - r_s^(2l+1))
+
+        This gives three field components:
+
+          Br     = -dΦ/dr
+                 = -Σ_lm g_lm * dR_l/dr * Y_lm
+            where dR_l/dr = (l r^(l-1) + (l+1) r_s^(2l+1) / r^(l+2)) / (1 - r_s^(2l+1))
+
+          Btheta = -(1/r) dΦ/dtheta
+                 = -Σ_lm g_lm * (R_l/r) * dY_lm/dtheta
+            dY_lm/dtheta computed via central finite difference (eps=1e-5)
+
+          Bphi   = -(1/(r sinθ)) dΦ/dphi
+                 = -Σ_lm g_lm * (R_l/r) * (1/sinθ) * dY_lm/dphi
+            dY_lm/dphi = i*m * Y_lm  (exact analytic derivative)
+
         Parameters:
         -----------
         r : float
@@ -200,28 +350,40 @@ class PFSSExtrapolationFromALM:
         """
         if self.alm is None:
             raise ValueError("Must load alm coefficients first")
-        
-        Br = 0.0
-        Btheta = 0.0
-        Bphi = 0.0
-        
-        for l in range(1, self.lmax + 1):  # l=0 doesn't contribute
-            for m in range(-l, l + 1):
-                ylm = sph_harm(m, l, phi, theta)
-                
-                # Get coefficient
-                g_lm = self.alm.get((l, m), 0.0)
-                
-                # PFSS radial dependence
-                # Potential field formula
-                C_l = (r**l - self.r_source**(2*l+1) / r**(l+1)) / \
-                      (1 - self.r_source**(2*l+1))
-                
-                # Radial component
-                Br += g_lm * (l * r**(l-1) + (l+1) * self.r_source**(2*l+1) / r**(l+2)) / \
-                      (1 - self.r_source**(2*l+1)) * ylm
-        
-        return Br.real, Btheta, Bphi
+
+        ls    = self.ls      # shape (N,)
+        ms    = self.ms      # shape (N,)
+        g_lms = self.g_lms   # shape (N,)
+        rs    = self.r_source
+
+        eps = 1e-5  # step size for central finite difference on dY/dtheta
+
+        # Clamp sin(theta) away from zero to avoid division by zero near poles
+        sin_theta = np.sin(theta)
+        if abs(sin_theta) < 1e-10:
+            sin_theta = 1e-10
+
+        # --- Radial factors, vectorised over all l values ---
+        denom   = 1.0 - rs ** (2 * ls + 1)                                            # shape (N,)
+        dR_dr   = (ls * r**(ls-1) + (ls+1) * rs**(2*ls+1) / r**(ls+2)) / denom       # shape (N,)
+        R_over_r = (r**ls - rs**(2*ls+1) / r**(ls+1)) / (denom * r)                  # shape (N,)
+
+        # --- Spherical harmonics, single batched call for all (l,m) pairs ---
+        ylm        = sph_harm(ms, ls, phi, theta)                                      # shape (N,)
+        theta_p    = min(theta + eps, np.pi - eps)
+        theta_m    = max(theta - eps, eps)
+        ylm_p      = sph_harm(ms, ls, phi, theta_p)                                   # shape (N,)
+        ylm_m      = sph_harm(ms, ls, phi, theta_m)                                   # shape (N,)
+        dYlm_dtheta = (ylm_p - ylm_m) / (theta_p - theta_m)                          # shape (N,)
+        dYlm_dphi   = 1j * ms * ylm                                                   # shape (N,), analytic
+
+        # --- Sum contributions from all (l,m) pairs ---
+        Br     = np.sum(g_lms * dR_dr    * ylm)
+        Btheta = np.sum(g_lms * R_over_r * dYlm_dtheta)
+        Bphi   = np.sum(g_lms * R_over_r * dYlm_dphi / sin_theta)
+
+        # Apply B = -grad(Φ) sign and take real part
+        return (-Br).real, (-Btheta).real, (-Bphi).real
     
     def trace_field_line(self, r_start, theta_start, phi_start, 
                          max_steps=1000, step_size=0.01, direction=1):
@@ -280,63 +442,57 @@ class PFSSExtrapolationFromALM:
         
         return points, field_strengths
     
-    def generate_field_lines(self, n_lines=500):
+    def generate_field_lines(self, n_lines=100, step_size=0.01, max_steps=1000):
         """
         Generate multiple field lines across the solar surface.
+
+        Seeds n_lines starting points on a uniform grid across the photosphere
+        (sqrt(n_lines) points in theta × sqrt(n_lines) in phi), then traces
+        each one in both directions and classifies open vs closed.
         
         Parameters:
         -----------
         n_lines : int
             Number of field lines to trace
+        step_size : float
+            Integration step size — smaller = smoother, longer traces (default 0.01)
+        max_steps : int
+            Maximum steps per field line — increase alongside smaller step_size (default 1000)
             
         Returns:
         --------
         field_lines : list of dict
             Each dict contains 'points', 'strengths', 'polarity'
         """
-        field_lines = []
-        
-        print(f"Tracing {n_lines} field lines...")
-        
-        # Create starting points distributed across photosphere
+        # Create seed points distributed across photosphere
         n_theta = int(np.sqrt(n_lines))
-        n_phi = int(n_lines / n_theta)
-        
+        n_phi   = int(n_lines / n_theta)
         theta_starts = np.linspace(0.1, np.pi - 0.1, n_theta)
-        phi_starts = np.linspace(0, 2 * np.pi, n_phi, endpoint=False)
-        
-        count = 0
-        for theta_start in theta_starts:
-            for phi_start in phi_starts:
-                r_start = 1.0  # Start at photosphere
-                
-                # Trace in both directions
-                points_forward, strengths_forward = self.trace_field_line(
-                    r_start, theta_start, phi_start, direction=1
-                )
-                points_backward, strengths_backward = self.trace_field_line(
-                    r_start, theta_start, phi_start, direction=-1
-                )
-                
-                # Combine (backward reversed + forward)
-                points = points_backward[::-1] + points_forward[1:]
-                strengths = strengths_backward[::-1] + strengths_forward[1:]
-                
-                # Determine if open or closed
-                r_end = points[-1][0] if len(points) > 0 else r_start
-                polarity = 'open' if r_end > self.r_source - 0.1 else 'closed'
-                
-                field_lines.append({
-                    'points': points,
-                    'strengths': strengths,
-                    'polarity': polarity
-                })
-                
-                count += 1
-                if count % 50 == 0:
-                    print(f"  Traced {count}/{n_lines} field lines")
-        
-        print(f"✓ Traced {len(field_lines)} field lines")
+        phi_starts   = np.linspace(0, 2 * np.pi, n_phi, endpoint=False)
+        seeds = [
+            (1.0, float(th), float(ph))
+            for th in theta_starts
+            for ph in phi_starts
+        ]
+
+        n_workers = mp.cpu_count()
+        print(f"Tracing {len(seeds)} field lines across {n_workers} CPU cores "
+              f"(step_size={step_size}, max_steps={max_steps})...")
+
+        # Each worker process is initialised with the alm arrays and tracing
+        # parameters as globals — avoids re-pickling them on every task
+        with mp.Pool(
+            processes=n_workers,
+            initializer=_worker_init,
+            initargs=(self.ls, self.ms, self.g_lms, self.r_source, step_size, max_steps)
+        ) as pool:
+            field_lines = pool.starmap(_trace_one, seeds)
+
+        open_count   = sum(1 for fl in field_lines if fl['polarity'] == 'open')
+        closed_count = len(field_lines) - open_count
+        print(f"✓ Traced {len(field_lines)} field lines "
+              f"({open_count} open, {closed_count} closed)")
+
         return field_lines
     
     def spherical_to_cartesian(self, r, theta, phi):
@@ -391,7 +547,7 @@ print("✓ PFSSExtrapolationFromALM class defined")
 # ## Cell 4: Processing Functions
 
 # %%
-def process_single_cr(alm_csv_path, output_json_path, n_lines=100):
+def process_single_cr(alm_csv_path, output_json_path, n_lines=100, step_size=0.01, max_steps=1000):
     """
     Process a single Carrington rotation using precomputed alm coefficients.
     
@@ -403,30 +559,48 @@ def process_single_cr(alm_csv_path, output_json_path, n_lines=100):
         Path for output JSON file
     n_lines : int
         Number of field lines to trace (100-500 recommended)
+    step_size : float
+        Integration step size — smaller = smoother, longer traces (default 0.01)
+    max_steps : int
+        Maximum steps per field line (default 1000)
     """
-    print(f"\n{'='*60}")
-    print(f"Processing: {Path(alm_csv_path).name}")
-    print(f"{'='*60}\n")
-    
+    import time
+
+    print(f"\n{chr(61)*60}")
+    print(f"Processing: {alm_csv_path}")
+    print(f"{chr(61)*60}\n")
+
+    total_start = time.time()
+
     # Initialize PFSS with high lmax (will be updated from CSV)
     pfss = PFSSExtrapolationFromALM(lmax=85, r_source=2.5)
-    
+
     # Load precomputed alm coefficients
+    t0 = time.time()
     pfss.alm = pfss.load_alm_from_csv(alm_csv_path)
-    
+    pfss.prepare_arrays()
+    print(f"  Load time:    {time.time() - t0:.1f}s")
+
     # Generate field lines
-    field_lines = pfss.generate_field_lines(n_lines=n_lines)
-    
+    t0 = time.time()
+    field_lines = pfss.generate_field_lines(n_lines=n_lines, step_size=step_size, max_steps=max_steps)
+    tracing_time = time.time() - t0
+    print(f"  Tracing time: {tracing_time:.1f}s  ({tracing_time/n_lines:.2f}s per line)")
+
     # Export for visualization
+    t0 = time.time()
     pfss.export_for_visualization(field_lines, output_json_path)
-    
-    print(f"\n{'='*60}")
-    print("✓ Processing complete!")
-    print(f"{'='*60}\n")
+    print(f"  Export time:  {time.time() - t0:.1f}s")
+
+    total_time = time.time() - total_start
+    print(f"\n{chr(61)*60}")
+    print(f"✓ Processing complete!  Total: {total_time:.1f}s ({total_time/60:.1f} min)")
+    print(f"{chr(61)*60}\n")
 
 
-def batch_process_all_crs(alm_dir, output_dir="/kaggle/working/coronal_data_lmax85", 
-                          n_lines=100, start_cr=2096, end_cr=2285):
+def batch_process_all_crs(alm_dir, output_dir="/kaggle/working/coronal_data_lmax85",
+                          n_lines=100, step_size=0.01, max_steps=1000,
+                          start_cr=2096, end_cr=2285):
     """
     Batch process all Carrington rotations using precomputed alm coefficients.
     
@@ -438,6 +612,10 @@ def batch_process_all_crs(alm_dir, output_dir="/kaggle/working/coronal_data_lmax
         Directory to save coronal JSON files
     n_lines : int
         Number of field lines to trace
+    step_size : float
+        Integration step size (default 0.01)
+    max_steps : int
+        Maximum steps per field line (default 1000)
     start_cr : int
         Starting Carrington rotation number
     end_cr : int
@@ -499,7 +677,9 @@ def batch_process_all_crs(alm_dir, output_dir="/kaggle/working/coronal_data_lmax
             process_single_cr(
                 alm_csv_path=str(alm_file),
                 output_json_path=str(output_json),
-                n_lines=n_lines
+                n_lines=n_lines,
+                step_size=step_size,
+                max_steps=max_steps
             )
             
             processed += 1
@@ -538,7 +718,9 @@ print("✓ Processing functions defined")
 # Configuration
 ALM_INPUT_DIR = DETECTED_ALM_DIR  # Use auto-detected path from Cell 1
 OUTPUT_DIR = "/kaggle/working/coronal_data_lmax85"
-N_FIELD_LINES = 100  # Increase to 500 for higher quality
+N_FIELD_LINES = 100   # Increase to 500 for higher quality
+STEP_SIZE     = 0.01  # Smaller = smoother field lines, slower
+MAX_STEPS     = 1000  # Increase with smaller step_size
 START_CR = 2096
 END_CR = 2285
 
@@ -558,6 +740,8 @@ else:
         alm_dir=ALM_INPUT_DIR,
         output_dir=OUTPUT_DIR,
         n_lines=N_FIELD_LINES,
+        step_size=STEP_SIZE,
+        max_steps=MAX_STEPS,
         start_cr=START_CR,
         end_cr=END_CR
     )
