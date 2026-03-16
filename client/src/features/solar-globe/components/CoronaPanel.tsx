@@ -18,6 +18,8 @@ interface CoronaPanelProps {
   setShowClosedLines: (show: boolean) => void;
   setShowSourceSurface: (show: boolean) => void;
   currentCarringtonNumber?: number;
+  fieldLineMaxStrength: number;
+  setFieldLineMaxStrength: (value: number) => void;
   onClose: () => void;
 }
 
@@ -35,6 +37,8 @@ export default function CoronaPanel({
   setShowClosedLines,
   setShowSourceSurface,
   currentCarringtonNumber,
+  fieldLineMaxStrength,
+  setFieldLineMaxStrength,
   onClose
 }: CoronaPanelProps) {
   const handleCoronalToggle = () => {
@@ -113,6 +117,35 @@ export default function CoronaPanel({
             >
               Surface
             </button>
+          </div>
+
+          {/* Field line colour scale */}
+          <div className="mt-4 pt-3 border-t border-gray-800">
+            <div className="text-xs text-gray-300 mb-2">Field Line Colour Scale</div>
+            <div className="text-xs text-gray-500 mb-2">
+              Strength ceiling: <span className="text-gray-300">{fieldLineMaxStrength} G</span>
+            </div>
+            <input
+              type="range"
+              min={50}
+              max={2000}
+              step={50}
+              value={fieldLineMaxStrength}
+              onChange={(e) => setFieldLineMaxStrength(Number(e.target.value))}
+              className="w-full accent-orange-400"
+            />
+            <div className="flex justify-between text-xs text-gray-600 mt-1">
+              <span>50 G</span>
+              <span>2000 G</span>
+            </div>
+            <div className="flex items-center gap-2 mt-2">
+              <div className="flex-1 h-1 rounded" style={{background: 'linear-gradient(to right, #006600, #80ff00)'}}></div>
+              <span className="text-xs text-gray-500">Open</span>
+            </div>
+            <div className="flex items-center gap-2 mt-1">
+              <div className="flex-1 h-1 rounded" style={{background: 'linear-gradient(to right, #800000, #ff9900)'}}></div>
+              <span className="text-xs text-gray-500">Closed</span>
+            </div>
           </div>
         </div>
       )}

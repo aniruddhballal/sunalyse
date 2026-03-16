@@ -94,7 +94,8 @@ export const useThreeScene = (
   showOpenLines: boolean,
   showClosedLines: boolean,
   showSourceSurface: boolean,
-  showGeographicPoles: boolean
+  showGeographicPoles: boolean,
+  fieldLineMaxStrength: number = 500
 ) => {
   const sceneRef = useRef<ThreeSceneRef | null>(null);
   const currentFitsDataRef = useRef<FITSData | null>(null);
@@ -650,45 +651,74 @@ export const useThreeScene = (
     sourceSurface.geometry.dispose();
     sourceSurface.geometry = new THREE.SphereGeometry(coronalData.metadata.r_source, 64, 64);
 
-    // Add new field lines
+    // Use user-supplied max strength for colour normalisation.
+    // t = strength / globalMaxStrength, clamped to [0, 1].
+    // Values above the ceiling clip to full brightness.
+    const globalMaxStrength = fieldLineMaxStrength > 0 ? fieldLineMaxStrength : 500;
+
+    // Add new field lines with per-vertex colour gradient based on field strength
     coronalData.fieldLines.forEach((fieldLine) => {
       if (fieldLine.points.length < 2) return;
 
-      const points = fieldLine.points.map(
-        ([x, y, z]) => new THREE.Vector3(x, y, z)
-      );
+      const isOpen = fieldLine.polarity === 'open';
+      const pts = fieldLine.points;
+      const strengths = fieldLine.strengths;
 
-      const geometry = new THREE.BufferGeometry().setFromPoints(points);
+      // Build flat position and colour arrays for BufferGeometry
+      const positions = new Float32Array(pts.length * 3);
+      const colors    = new Float32Array(pts.length * 3);
 
-      // Color based on polarity
-      const color = fieldLine.polarity === 'open' 
-        ? new THREE.Color(0x00ff00)  // Green for open
-        : new THREE.Color(0xff0000); // Red for closed
+      pts.forEach(([x, y, z], i) => {
+        positions[i * 3]     = x;
+        positions[i * 3 + 1] = y;
+        positions[i * 3 + 2] = z;
+
+        // strength at vertex i — strengths array is 1 shorter than points
+        // (first point has no incoming step), so clamp index
+        const raw = strengths[Math.min(i, strengths.length - 1)] ?? 0;
+        const t   = Math.min(raw / globalMaxStrength, 1.0); // 0 = weak, 1 = strong
+
+        if (isOpen) {
+          // Open lines: dim green (weak) → bright yellow-green (strong)
+          colors[i * 3]     = t * 0.5;           // R: zero at weak, warm yellow tint at strong
+          colors[i * 3 + 1] = 0.4 + t * 0.6;    // G: always dominant, full brightness at strong
+          colors[i * 3 + 2] = 0.0;               // B: zero — keeps it firmly in green family
+        } else {
+          // Closed lines: deep red (weak) → bright orange-yellow (strong)
+          colors[i * 3]     = 0.5 + t * 0.5;    // R: always red, saturates to full
+          colors[i * 3 + 1] = t * 0.65;          // G: 0 at weak, orange-yellow at strong
+          colors[i * 3 + 2] = t * 0.05;          // B: near zero, tiny warm highlight
+        }
+      });
+
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geometry.setAttribute('color',    new THREE.BufferAttribute(colors, 3));
 
       const material = new THREE.LineBasicMaterial({
-        color: color,
+        vertexColors: true,
         transparent: true,
-        opacity: hasExistingLines ? 0 : 0.6, // Start at 0 if transitioning
+        opacity: hasExistingLines ? 0 : 0.75,
         linewidth: 1
       });
 
       const line = new THREE.Line(geometry, material);
-      line.userData = { 
+      line.userData = {
         polarity: fieldLine.polarity,
         fieldLineData: fieldLine
       };
-      line.visible = showCoronalLines && (fieldLine.polarity === 'open' ? showOpenLines : showClosedLines);
-      
+      line.visible = showCoronalLines && (isOpen ? showOpenLines : showClosedLines);
+
       // Match rotation with sphere
       line.rotation.y = sceneRef.current!.sphere.rotation.y;
       line.rotation.x = sceneRef.current!.sphere.rotation.x;
-      
+
       fieldLineGroup.add(line);
     });
 
     currentCoronalDataRef.current = coronalData;
 
-  }, [coronalData]);
+  }, [coronalData, fieldLineMaxStrength]);
 
   // Handle field line visibility changes
   useEffect(() => {

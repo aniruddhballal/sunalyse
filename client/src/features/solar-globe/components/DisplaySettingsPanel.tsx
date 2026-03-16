@@ -44,6 +44,10 @@ interface DisplaySettingsPanelProps {
   
   // Details props
   dataSource: string;
+
+  // Field line colour props
+  fieldLineMaxStrength: number;
+  setFieldLineMaxStrength: (value: number) => void;
 }
 
 type ActivePanel = 'none' | 'photosphere' | 'corona' | 'details';
@@ -69,7 +73,9 @@ export default function DisplaySettingsPanel({
   setShowClosedLines,
   setShowSourceSurface,
   currentCarringtonNumber,
-  dataSource
+  dataSource,
+  fieldLineMaxStrength,
+  setFieldLineMaxStrength
 }: DisplaySettingsPanelProps) {
   const [isMainOpen, setIsMainOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<ActivePanel>('none');
@@ -176,6 +182,8 @@ export default function DisplaySettingsPanel({
           setShowClosedLines={setShowClosedLines}
           setShowSourceSurface={setShowSourceSurface}
           currentCarringtonNumber={currentCarringtonNumber}
+          fieldLineMaxStrength={fieldLineMaxStrength}
+          setFieldLineMaxStrength={setFieldLineMaxStrength}
           onClose={handleCloseSubPanel}
         />
       )}

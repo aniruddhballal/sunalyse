@@ -69,6 +69,7 @@ export default function ViewerView({
   const [fixedMin, setFixedMin] = useState('-500');
   const [fixedMax, setFixedMax] = useState('500');
   const [showGeographicPoles, setShowGeographicPoles] = useState(true);
+  const [fieldLineMaxStrength, setFieldLineMaxStrength] = useState(500);
 
   const handleNavigate = (direction: 'next' | 'prev') => {
     if (onNavigate && currentCarringtonNumber !== undefined) {
@@ -94,6 +95,7 @@ export default function ViewerView({
         fixedMin={parseFloat(fixedMin)}
         fixedMax={parseFloat(fixedMax)}
         showGeographicPoles={showGeographicPoles}
+        fieldLineMaxStrength={fieldLineMaxStrength}
       />
 
       {/* Unified Display Settings Panel */}
@@ -119,6 +121,8 @@ export default function ViewerView({
         setShowSourceSurface={setShowSourceSurface}
         currentCarringtonNumber={currentCarringtonNumber}
         dataSource={dataSource}
+        fieldLineMaxStrength={fieldLineMaxStrength}
+        setFieldLineMaxStrength={setFieldLineMaxStrength}
       />
 
       <div 
@@ -181,12 +185,12 @@ export default function ViewerView({
         {showCoronalLines && coronalData && (
           <div className="mt-2 space-y-1">
             <div className="flex items-center gap-2">
-              <div className="w-3 h-0.5 bg-green-500"></div>
-              <span>Open</span>
+              <div className="w-8 h-0.5" style={{background: 'linear-gradient(to right, #006600, #80ff00)'}}></div>
+              <span>Open (weak → strong)</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-3 h-0.5 bg-red-500"></div>
-              <span>Closed</span>
+              <div className="w-8 h-0.5" style={{background: 'linear-gradient(to right, #800000, #ff9900)'}}></div>
+              <span>Closed (weak → strong)</span>
             </div>
           </div>
         )}
