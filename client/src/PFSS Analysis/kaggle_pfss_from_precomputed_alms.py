@@ -520,6 +520,58 @@ class PFSSExtrapolationFromALM:
         z = r * np.cos(theta)
         return [x, y, z]
     
+    def compute_hcs_neutral_line(self, n_theta=180, n_phi=360):
+        """
+        Compute the Heliospheric Current Sheet (HCS) neutral line at the source
+        surface (r = r_source) — the contour where Br = 0.
+
+        Evaluates Br on a (n_theta x n_phi) grid at r_source using the vectorised
+        compute_field_at_point, then traces zero crossings along each latitude row
+        using linear interpolation. Returns a list of 3D Cartesian points suitable
+        for rendering as a curve in Three.js.
+
+        Parameters:
+        -----------
+        n_theta : int
+            Number of colatitude steps (default 180)
+        n_phi : int
+            Number of longitude steps (default 360)
+
+        Returns:
+        --------
+        points : list of [x, y, z]
+            Cartesian coordinates of the neutral line at the source surface
+        """
+        r = self.r_source
+        theta_vals = np.linspace(0.05, np.pi - 0.05, n_theta)
+        phi_vals   = np.linspace(0.0, 2.0 * np.pi, n_phi, endpoint=False)
+
+        # Evaluate Br across the full grid
+        # Shape: (n_theta, n_phi)
+        br_grid = np.zeros((n_theta, n_phi))
+        for i, theta in enumerate(theta_vals):
+            for j, phi in enumerate(phi_vals):
+                br_grid[i, j], _, _ = self.compute_field_at_point(r, theta, phi)
+
+        # Find zero crossings along phi direction for each theta row
+        points = []
+        for i, theta in enumerate(theta_vals):
+            for j in range(n_phi):
+                j_next = (j + 1) % n_phi
+                b0 = br_grid[i, j]
+                b1 = br_grid[i, j_next]
+                if b0 * b1 < 0:  # sign change → zero crossing between j and j_next
+                    # Linear interpolation to find exact phi of crossing
+                    t = b0 / (b0 - b1)
+                    phi_cross = phi_vals[j] + t * (
+                        phi_vals[j_next] if j_next > j
+                        else phi_vals[j_next] + 2 * np.pi
+                    )
+                    points.append(self.spherical_to_cartesian(r, theta, phi_cross))
+
+        print(f"  HCS neutral line: {len(points)} points")
+        return points
+
     def export_for_visualization(self, field_lines, output_path):
         """
         Export field lines in format suitable for Three.js visualization.
@@ -531,13 +583,18 @@ class PFSSExtrapolationFromALM:
         output_path : str
             Path to save JSON file
         """
+        # Compute HCS neutral line at source surface
+        print("  Computing HCS neutral line...")
+        hcs_points = self.compute_hcs_neutral_line()
+
         export_data = {
             'metadata': {
                 'lmax': self.lmax,
                 'r_source': self.r_source,
                 'n_field_lines': len(field_lines)
             },
-            'fieldLines': []
+            'fieldLines': [],
+            'neutralLine': hcs_points
         }
         
         for fl in field_lines:
@@ -804,15 +861,18 @@ else:
 # %%
 # Uncomment to test with a single CR before running full batch
 # 
-# test_cr = 2240
-# test_input = f"/kaggle/input/alm-values/values_{test_cr}.csv"
-# test_output = f"/kaggle/working/test_cr{test_cr}_coronal.json"
+# test_cr = 2097
+# test_input = f"{DETECTED_ALM_DIR}/values_{test_cr}.csv"
+# test_output = f"/kaggle/working/cr{test_cr}_coronal_hcs_test.json"
 # 
 # if Path(test_input).exists():
 #     process_single_cr(
 #         alm_csv_path=test_input,
 #         output_json_path=test_output,
-#         n_lines=100
+#         n_lines=100,
+#         step_size=0.01,
+#         max_steps=1000,
+#         seed_dir=DETECTED_SEED_DIR
 #     )
 # else:
 #     print(f"Test file not found: {test_input}")
