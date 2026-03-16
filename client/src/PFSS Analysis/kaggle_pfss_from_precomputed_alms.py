@@ -89,7 +89,20 @@ else:
 
 # Save the detected path for later use
 DETECTED_ALM_DIR = str(alm_dir)
-print(f"\n💾 Detected path saved: {DETECTED_ALM_DIR}")
+print(f"\n💾 Detected ALM path saved: {DETECTED_ALM_DIR}")
+
+# Detect seed-data directory using recursive glob
+all_seeds = sorted(kaggle_input.glob("**/seeds_*.csv"))
+if all_seeds:
+    seed_dir = all_seeds[0].parent
+    print(f"\n✓ Found {len(all_seeds)} seed CSVs")
+    print(f"   Directory: {seed_dir}")
+else:
+    seed_dir = None
+    print("\n⚠️  No seed CSVs found — will fall back to uniform grid seeding")
+
+DETECTED_SEED_DIR = str(seed_dir) if seed_dir else None
+print(f"💾 Detected seed path saved: {DETECTED_SEED_DIR}")
 
 print("\n" + "="*60)
 
@@ -442,7 +455,8 @@ class PFSSExtrapolationFromALM:
         
         return points, field_strengths
     
-    def generate_field_lines(self, n_lines=100, step_size=0.01, max_steps=1000):
+    def generate_field_lines(self, n_lines=100, step_size=0.01, max_steps=1000,
+                             adaptive_seeds=None):
         """
         Generate multiple field lines across the solar surface.
 
@@ -464,16 +478,20 @@ class PFSSExtrapolationFromALM:
         field_lines : list of dict
             Each dict contains 'points', 'strengths', 'polarity'
         """
-        # Create seed points distributed across photosphere
-        n_theta = int(np.sqrt(n_lines))
-        n_phi   = int(n_lines / n_theta)
-        theta_starts = np.linspace(0.1, np.pi - 0.1, n_theta)
-        phi_starts   = np.linspace(0, 2 * np.pi, n_phi, endpoint=False)
-        seeds = [
-            (1.0, float(th), float(ph))
-            for th in theta_starts
-            for ph in phi_starts
-        ]
+        if adaptive_seeds is not None:
+            seeds = [(1.0, float(th), float(ph)) for th, ph in adaptive_seeds]
+            print(f"Using {len(seeds)} adaptive seeds from FITS-derived seed CSV")
+        else:
+            n_theta = int(np.sqrt(n_lines))
+            n_phi   = int(n_lines / n_theta)
+            theta_starts = np.linspace(0.1, np.pi - 0.1, n_theta)
+            phi_starts   = np.linspace(0, 2 * np.pi, n_phi, endpoint=False)
+            seeds = [
+                (1.0, float(th), float(ph))
+                for th in theta_starts
+                for ph in phi_starts
+            ]
+            print(f"Using {len(seeds)} uniform grid seeds (no seed CSV found)")
 
         n_workers = mp.cpu_count()
         print(f"Tracing {len(seeds)} field lines across {n_workers} CPU cores "
@@ -547,10 +565,11 @@ print("✓ PFSSExtrapolationFromALM class defined")
 # ## Cell 4: Processing Functions
 
 # %%
-def process_single_cr(alm_csv_path, output_json_path, n_lines=100, step_size=0.01, max_steps=1000):
+def process_single_cr(alm_csv_path, output_json_path, n_lines=100, step_size=0.01,
+                      max_steps=1000, seed_dir=None):
     """
     Process a single Carrington rotation using precomputed alm coefficients.
-    
+
     Parameters:
     -----------
     alm_csv_path : str
@@ -558,13 +577,17 @@ def process_single_cr(alm_csv_path, output_json_path, n_lines=100, step_size=0.0
     output_json_path : str
         Path for output JSON file
     n_lines : int
-        Number of field lines to trace (100-500 recommended)
+        Number of field lines when falling back to uniform grid
     step_size : float
-        Integration step size — smaller = smoother, longer traces (default 0.01)
+        Integration step size (default 0.01)
     max_steps : int
         Maximum steps per field line (default 1000)
+    seed_dir : str or Path or None
+        Directory containing seeds_xxxx.csv files. If provided and the matching
+        file exists, adaptive seeds are used instead of the uniform grid.
     """
     import time
+    import re as _re
 
     print(f"\n{chr(61)*60}")
     print(f"Processing: {alm_csv_path}")
@@ -572,20 +595,35 @@ def process_single_cr(alm_csv_path, output_json_path, n_lines=100, step_size=0.0
 
     total_start = time.time()
 
-    # Initialize PFSS with high lmax (will be updated from CSV)
     pfss = PFSSExtrapolationFromALM(lmax=85, r_source=2.5)
 
-    # Load precomputed alm coefficients
     t0 = time.time()
     pfss.alm = pfss.load_alm_from_csv(alm_csv_path)
     pfss.prepare_arrays()
     print(f"  Load time:    {time.time() - t0:.1f}s")
 
+    # Load adaptive seeds if available
+    adaptive_seeds = None
+    if seed_dir is not None:
+        match = _re.search(r'(\d{4})', Path(alm_csv_path).stem)
+        if match:
+            cr_num   = match.group(1)
+            seed_csv = Path(seed_dir) / f"seeds_{cr_num}.csv"
+            if seed_csv.exists():
+                seed_df        = pd.read_csv(seed_csv)
+                adaptive_seeds = list(zip(seed_df['theta'], seed_df['phi']))
+                print(f"  Seeds:        {len(adaptive_seeds)} adaptive (from {seed_csv.name})")
+            else:
+                print(f"  Seeds:        uniform grid (no seed CSV for CR {cr_num})")
+
     # Generate field lines
     t0 = time.time()
-    field_lines = pfss.generate_field_lines(n_lines=n_lines, step_size=step_size, max_steps=max_steps)
+    field_lines = pfss.generate_field_lines(
+        n_lines=n_lines, step_size=step_size, max_steps=max_steps,
+        adaptive_seeds=adaptive_seeds
+    )
     tracing_time = time.time() - t0
-    print(f"  Tracing time: {tracing_time:.1f}s  ({tracing_time/n_lines:.2f}s per line)")
+    print(f"  Tracing time: {tracing_time:.1f}s  ({tracing_time/max(len(field_lines),1):.2f}s per line)")
 
     # Export for visualization
     t0 = time.time()
@@ -597,13 +635,12 @@ def process_single_cr(alm_csv_path, output_json_path, n_lines=100, step_size=0.0
     print(f"✓ Processing complete!  Total: {total_time:.1f}s ({total_time/60:.1f} min)")
     print(f"{chr(61)*60}\n")
 
-
 def batch_process_all_crs(alm_dir, output_dir="/kaggle/working/coronal_data_lmax85",
                           n_lines=100, step_size=0.01, max_steps=1000,
-                          start_cr=2096, end_cr=2285):
+                          start_cr=2096, end_cr=2285, seed_dir=None):
     """
     Batch process all Carrington rotations using precomputed alm coefficients.
-    
+
     Parameters:
     -----------
     alm_dir : str or Path
@@ -611,7 +648,7 @@ def batch_process_all_crs(alm_dir, output_dir="/kaggle/working/coronal_data_lmax
     output_dir : str
         Directory to save coronal JSON files
     n_lines : int
-        Number of field lines to trace
+        Number of field lines when falling back to uniform grid
     step_size : float
         Integration step size (default 0.01)
     max_steps : int
@@ -620,6 +657,8 @@ def batch_process_all_crs(alm_dir, output_dir="/kaggle/working/coronal_data_lmax
         Starting Carrington rotation number
     end_cr : int
         Ending Carrington rotation number
+    seed_dir : str or Path or None
+        Directory containing seeds_xxxx.csv files for adaptive seeding
     """
     alm_path = Path(alm_dir)
     output_path = Path(output_dir)
@@ -679,7 +718,8 @@ def batch_process_all_crs(alm_dir, output_dir="/kaggle/working/coronal_data_lmax
                 output_json_path=str(output_json),
                 n_lines=n_lines,
                 step_size=step_size,
-                max_steps=max_steps
+                max_steps=max_steps,
+                seed_dir=seed_dir
             )
             
             processed += 1
@@ -716,13 +756,14 @@ print("✓ Processing functions defined")
 
 # %%
 # Configuration
-ALM_INPUT_DIR = DETECTED_ALM_DIR  # Use auto-detected path from Cell 1
-OUTPUT_DIR = "/kaggle/working/coronal_data_lmax85"
-N_FIELD_LINES = 100   # Increase to 500 for higher quality
-STEP_SIZE     = 0.01  # Smaller = smoother field lines, slower
-MAX_STEPS     = 1000  # Increase with smaller step_size
+ALM_INPUT_DIR  = DETECTED_ALM_DIR   # Use auto-detected path from Cell 1
+SEED_INPUT_DIR = DETECTED_SEED_DIR  # Auto-detected seed CSV directory (or None)
+OUTPUT_DIR     = "/kaggle/working/coronal_data_lmax85"
+N_FIELD_LINES  = 100   # Used only if no seed CSV found for a CR
+STEP_SIZE      = 0.01  # Smaller = smoother field lines, slower
+MAX_STEPS      = 1000  # Increase with smaller step_size
 START_CR = 2096
-END_CR = 2285
+END_CR   = 2285
 
 # Check if input directory exists
 if not Path(ALM_INPUT_DIR).exists():
@@ -743,7 +784,8 @@ else:
         step_size=STEP_SIZE,
         max_steps=MAX_STEPS,
         start_cr=START_CR,
-        end_cr=END_CR
+        end_cr=END_CR,
+        seed_dir=SEED_INPUT_DIR
     )
     
     # Show output files
