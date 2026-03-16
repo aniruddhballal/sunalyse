@@ -555,24 +555,19 @@ class PFSSExtrapolationFromALM:
         dR_dr  = (ls * r**(ls-1) + (ls+1) * rs**(2*ls+1) / r**(ls+2)) / denom
         # shape (N,)
 
-        # Build full (theta, phi) grid — shape (n_theta, n_phi)
-        theta_grid, phi_grid = np.meshgrid(theta_vals, phi_vals, indexing='ij')
-        # Flatten to (n_theta*n_phi,) for batched sph_harm
-        theta_flat = theta_grid.ravel()   # shape (M,)
-        phi_flat   = phi_grid.ravel()     # shape (M,)
-        M = len(theta_flat)
+        # Compute Br row by row (one theta at a time) to avoid allocating a
+        # (n_theta*n_phi, N) complex matrix which is ~480M entries and OOMs.
+        # Each row is (n_phi, N) = ~2.6M entries — very manageable.
+        br_grid = np.zeros((n_theta, n_phi))
+        weights = gs * dR_dr  # shape (N,) — precomputed, shared across all rows
 
-        # Broadcast sph_harm over all (l,m) pairs AND all grid points at once
-        # ls[None,:] shape (1,N), theta_flat[:,None] shape (M,1) → result (M,N)
-        ylm_all = sph_harm(ms[None, :], ls[None, :],
-                           phi_flat[:, None], theta_flat[:, None])  # (M, N)
-
-        # Br = Re[ -sum_lm  g_lm * dR_dr_l * Y_lm ]
-        # g_lms * dR_dr shape (N,), ylm_all shape (M,N)
-        Br_flat = -np.real(ylm_all @ (gs * dR_dr))  # (M,)
-
-        # Reshape back to grid
-        br_grid = Br_flat.reshape(n_theta, n_phi)
+        for i, theta in enumerate(theta_vals):
+            # phi_vals shape (n_phi,), broadcast with ls/ms shape (N,)
+            # ylm_row shape (n_phi, N)
+            ylm_row = sph_harm(ms[None, :], ls[None, :],
+                               phi_vals[:, None],
+                               np.full(n_phi, theta)[:, None])
+            br_grid[i] = -np.real(ylm_row @ weights)
 
         # Find zero crossings along phi direction for each theta row
         points = []
