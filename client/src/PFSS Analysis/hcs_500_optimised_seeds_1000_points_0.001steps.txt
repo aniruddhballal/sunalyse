@@ -6,48 +6,48 @@ Processing: /kaggle/input/alm-values/alm values/values_2097.csv
 Loading alm coefficients from values_2097.csv...
 ✓ Loaded 7396 coefficients (lmax = 85)
   Prepared 7395 (l,m) pairs as NumPy arrays for vectorised computation
-  Load time:    0.4s
+  Load time:    0.5s
   Seeds:        500 adaptive (from seeds_2097.csv)
 Using 500 adaptive seeds from FITS-derived seed CSV
 Tracing 500 field lines across 4 CPU cores (step_size=0.01, max_steps=1000)...
 
-/tmp/ipykernel_55/139385411.py:46: DeprecationWarning: `scipy.special.sph_harm` is deprecated as of SciPy 1.15.0 and will be removed in SciPy 1.17.0. Please use `scipy.special.sph_harm_y` instead.
+/tmp/ipykernel_98/139385411.py:46: DeprecationWarning: `scipy.special.sph_harm` is deprecated as of SciPy 1.15.0 and will be removed in SciPy 1.17.0. Please use `scipy.special.sph_harm_y` instead.
   ylm         = sph_harm(ms, ls, phi, theta)
-/tmp/ipykernel_55/139385411.py:46: DeprecationWarning: `scipy.special.sph_harm` is deprecated as of SciPy 1.15.0 and will be removed in SciPy 1.17.0. Please use `scipy.special.sph_harm_y` instead.
+/tmp/ipykernel_98/139385411.py:46: DeprecationWarning: `scipy.special.sph_harm` is deprecated as of SciPy 1.15.0 and will be removed in SciPy 1.17.0. Please use `scipy.special.sph_harm_y` instead.
   ylm         = sph_harm(ms, ls, phi, theta)
-/tmp/ipykernel_55/139385411.py:46: DeprecationWarning: `scipy.special.sph_harm` is deprecated as of SciPy 1.15.0 and will be removed in SciPy 1.17.0. Please use `scipy.special.sph_harm_y` instead.
+/tmp/ipykernel_98/139385411.py:46: DeprecationWarning: `scipy.special.sph_harm` is deprecated as of SciPy 1.15.0 and will be removed in SciPy 1.17.0. Please use `scipy.special.sph_harm_y` instead.
   ylm         = sph_harm(ms, ls, phi, theta)
-/tmp/ipykernel_55/139385411.py:46: DeprecationWarning: `scipy.special.sph_harm` is deprecated as of SciPy 1.15.0 and will be removed in SciPy 1.17.0. Please use `scipy.special.sph_harm_y` instead.
+/tmp/ipykernel_98/139385411.py:46: DeprecationWarning: `scipy.special.sph_harm` is deprecated as of SciPy 1.15.0 and will be removed in SciPy 1.17.0. Please use `scipy.special.sph_harm_y` instead.
   ylm         = sph_harm(ms, ls, phi, theta)
-/tmp/ipykernel_55/139385411.py:49: DeprecationWarning: `scipy.special.sph_harm` is deprecated as of SciPy 1.15.0 and will be removed in SciPy 1.17.0. Please use `scipy.special.sph_harm_y` instead.
+/tmp/ipykernel_98/139385411.py:49: DeprecationWarning: `scipy.special.sph_harm` is deprecated as of SciPy 1.15.0 and will be removed in SciPy 1.17.0. Please use `scipy.special.sph_harm_y` instead.
   ylm_p       = sph_harm(ms, ls, phi, theta_p)
-/tmp/ipykernel_55/139385411.py:49: DeprecationWarning: `scipy.special.sph_harm` is deprecated as of SciPy 1.15.0 and will be removed in SciPy 1.17.0. Please use `scipy.special.sph_harm_y` instead.
+/tmp/ipykernel_98/139385411.py:49: DeprecationWarning: `scipy.special.sph_harm` is deprecated as of SciPy 1.15.0 and will be removed in SciPy 1.17.0. Please use `scipy.special.sph_harm_y` instead.
   ylm_p       = sph_harm(ms, ls, phi, theta_p)
-/tmp/ipykernel_55/139385411.py:49: DeprecationWarning: `scipy.special.sph_harm` is deprecated as of SciPy 1.15.0 and will be removed in SciPy 1.17.0. Please use `scipy.special.sph_harm_y` instead.
+/tmp/ipykernel_98/139385411.py:49: DeprecationWarning: `scipy.special.sph_harm` is deprecated as of SciPy 1.15.0 and will be removed in SciPy 1.17.0. Please use `scipy.special.sph_harm_y` instead.
   ylm_p       = sph_harm(ms, ls, phi, theta_p)
-/tmp/ipykernel_55/139385411.py:49: DeprecationWarning: `scipy.special.sph_harm` is deprecated as of SciPy 1.15.0 and will be removed in SciPy 1.17.0. Please use `scipy.special.sph_harm_y` instead.
+/tmp/ipykernel_98/139385411.py:49: DeprecationWarning: `scipy.special.sph_harm` is deprecated as of SciPy 1.15.0 and will be removed in SciPy 1.17.0. Please use `scipy.special.sph_harm_y` instead.
   ylm_p       = sph_harm(ms, ls, phi, theta_p)
-/tmp/ipykernel_55/139385411.py:50: DeprecationWarning: `scipy.special.sph_harm` is deprecated as of SciPy 1.15.0 and will be removed in SciPy 1.17.0. Please use `scipy.special.sph_harm_y` instead.
+/tmp/ipykernel_98/139385411.py:50: DeprecationWarning: `scipy.special.sph_harm` is deprecated as of SciPy 1.15.0 and will be removed in SciPy 1.17.0. Please use `scipy.special.sph_harm_y` instead.
   ylm_m       = sph_harm(ms, ls, phi, theta_m_val)
-/tmp/ipykernel_55/139385411.py:50: DeprecationWarning: `scipy.special.sph_harm` is deprecated as of SciPy 1.15.0 and will be removed in SciPy 1.17.0. Please use `scipy.special.sph_harm_y` instead.
+/tmp/ipykernel_98/139385411.py:50: DeprecationWarning: `scipy.special.sph_harm` is deprecated as of SciPy 1.15.0 and will be removed in SciPy 1.17.0. Please use `scipy.special.sph_harm_y` instead.
   ylm_m       = sph_harm(ms, ls, phi, theta_m_val)
-/tmp/ipykernel_55/139385411.py:50: DeprecationWarning: `scipy.special.sph_harm` is deprecated as of SciPy 1.15.0 and will be removed in SciPy 1.17.0. Please use `scipy.special.sph_harm_y` instead.
+/tmp/ipykernel_98/139385411.py:50: DeprecationWarning: `scipy.special.sph_harm` is deprecated as of SciPy 1.15.0 and will be removed in SciPy 1.17.0. Please use `scipy.special.sph_harm_y` instead.
   ylm_m       = sph_harm(ms, ls, phi, theta_m_val)
-/tmp/ipykernel_55/139385411.py:50: DeprecationWarning: `scipy.special.sph_harm` is deprecated as of SciPy 1.15.0 and will be removed in SciPy 1.17.0. Please use `scipy.special.sph_harm_y` instead.
+/tmp/ipykernel_98/139385411.py:50: DeprecationWarning: `scipy.special.sph_harm` is deprecated as of SciPy 1.15.0 and will be removed in SciPy 1.17.0. Please use `scipy.special.sph_harm_y` instead.
   ylm_m       = sph_harm(ms, ls, phi, theta_m_val)
 
 ✓ Traced 500 field lines (3 open, 497 closed)
-  Tracing time: 277.3s  (0.55s per line)
+  Tracing time: 269.6s  (0.54s per line)
   Computing HCS neutral line...
 
-/tmp/ipykernel_55/2494027616.py:342: DeprecationWarning: `scipy.special.sph_harm` is deprecated as of SciPy 1.15.0 and will be removed in SciPy 1.17.0. Please use `scipy.special.sph_harm_y` instead.
-  ylm_all = sph_harm(ms[None, :], ls[None, :],
+/tmp/ipykernel_98/1350258057.py:342: DeprecationWarning: `scipy.special.sph_harm` is deprecated as of SciPy 1.15.0 and will be removed in SciPy 1.17.0. Please use `scipy.special.sph_harm_y` instead.
+  ylm_row = sph_harm(ms[None, :], ls[None, :],
 
   HCS neutral line: 604 points
 ✓ Exported to cr2097_coronal_hcs_test.json
   File size: 1155.6 KB
-  Export time:  876.7s
+  Export time:  868.4s
 
 ============================================================
-✓ Processing complete!  Total: 1154.4s (19.2 min)
+✓ Processing complete!  Total: 1138.5s (19.0 min)
 ============================================================
