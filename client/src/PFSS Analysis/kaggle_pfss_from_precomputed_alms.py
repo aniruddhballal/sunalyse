@@ -625,8 +625,44 @@ class PFSSExtrapolationFromALM:
                 'polarity': fl['polarity']
             })
         
+        import time as _time
+
+        _t0 = _time.time()
+        # Compute HCS neutral line
+        hcs_points = export_data['neutralLine']
+        print(f"    [timing] neutralLine already computed: {len(hcs_points)} points")
+
+        _t1 = _time.time()
+        # Build fieldLines list
+        _n = len(export_data['fieldLines'])
+        _total_pts = sum(len(fl['points']) for fl in export_data['fieldLines'])
+        print(f"    [timing] fieldLines built: {_n} lines, {_total_pts} total points — {_t1-_t0:.2f}s")
+
+        _t2 = _time.time()
+        # Round floats
+        def round_nested(obj, dp=6):
+            if isinstance(obj, float):
+                return round(obj, dp)
+            if isinstance(obj, list):
+                return [round_nested(v, dp) for v in obj]
+            if isinstance(obj, dict):
+                return {k: round_nested(v, dp) for k, v in obj.items()}
+            return obj
+        rounded = round_nested(export_data)
+        _t3 = _time.time()
+        print(f"    [timing] round_nested: {_t3-_t2:.2f}s")
+
+        # JSON serialisation
+        json_str = json.dumps(rounded, separators=(',', ':'))
+        _t4 = _time.time()
+        print(f"    [timing] json.dumps: {_t4-_t3:.2f}s  (string length: {len(json_str):,} chars)")
+
+        # File write
         with open(output_path, 'w') as f:
-            json.dump(export_data, f)
+            f.write(json_str)
+        _t5 = _time.time()
+        print(f"    [timing] file write: {_t5-_t4:.2f}s")
+        print(f"    [timing] total export: {_t5-_t0:.2f}s")
         
         print(f"✓ Exported to {Path(output_path).name}")
         print(f"  File size: {Path(output_path).stat().st_size / 1024:.1f} KB")
