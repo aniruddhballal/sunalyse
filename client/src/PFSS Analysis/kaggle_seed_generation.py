@@ -143,37 +143,54 @@ def pixels_to_coords(br_data):
 
 def cluster_seeds(candidates, cluster_sep):
     """
-    Greedy angular clustering: iterate through candidates sorted by |Br|
-    (strongest first) and keep a seed only if it is at least cluster_sep
-    radians away from all already-kept seeds.
+    O(n) occupancy grid clustering.
+
+    Divides the sphere into a grid of cluster_sep-sized cells. When a seed
+    is kept, its cell and all 8 neighbours are marked occupied. Each new
+    candidate checks only 9 cells — constant time regardless of how many
+    seeds have already been kept.
+
+    Replaces the O(n²) haversine loop which took ~82s per CR.
 
     Parameters
     ----------
     candidates : list of (theta, phi, br_strength, polarity_sign)
         Sorted strongest-first.
     cluster_sep : float
-        Minimum angular separation in radians.
+        Minimum angular separation in radians (= grid cell size).
 
     Returns
     -------
     kept : list of (theta, phi, br_strength, polarity_sign)
     """
+    cell_size     = cluster_sep
+    n_theta_cells = max(1, int(np.pi       / cell_size))
+    n_phi_cells   = max(1, int(2 * np.pi   / cell_size))
+
+    occupied = set()
+
+    def cell(theta, phi):
+        i = min(int(theta / cell_size), n_theta_cells - 1)
+        j = int(phi / cell_size) % n_phi_cells
+        return i, j
+
+    def mark(theta, phi):
+        i, j = cell(theta, phi)
+        for di in (-1, 0, 1):
+            for dj in (-1, 0, 1):
+                ni = i + di
+                if 0 <= ni < n_theta_cells:
+                    occupied.add((ni, (j + dj) % n_phi_cells))
+
+    def is_occupied(theta, phi):
+        i, j = cell(theta, phi)
+        return (i, j) in occupied
+
     kept = []
     for cand in candidates:
-        theta_c, phi_c = cand[0], cand[1]
-        too_close = False
-        for k in kept:
-            # Great-circle angular separation (haversine)
-            dtheta = theta_c - k[0]
-            dphi   = phi_c   - k[1]
-            a = (np.sin(dtheta / 2) ** 2
-                 + np.sin(theta_c) * np.sin(k[0]) * np.sin(dphi / 2) ** 2)
-            sep = 2.0 * np.arcsin(np.sqrt(np.clip(a, 0.0, 1.0)))
-            if sep < cluster_sep:
-                too_close = True
-                break
-        if not too_close:
+        if not is_occupied(cand[0], cand[1]):
             kept.append(cand)
+            mark(cand[0], cand[1])
     return kept
 
 
