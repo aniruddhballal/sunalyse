@@ -525,10 +525,9 @@ class PFSSExtrapolationFromALM:
         Compute the Heliospheric Current Sheet (HCS) neutral line at the source
         surface (r = r_source) — the contour where Br = 0.
 
-        Evaluates Br on a (n_theta x n_phi) grid at r_source using the vectorised
-        compute_field_at_point, then traces zero crossings along each latitude row
-        using linear interpolation. Returns a list of 3D Cartesian points suitable
-        for rendering as a curve in Three.js.
+        Fully vectorised: evaluates Br for all (theta, phi) grid points in a
+        single batched sph_harm call using broadcasting, then finds zero crossings
+        along each latitude row via linear interpolation.
 
         Parameters:
         -----------
@@ -542,32 +541,53 @@ class PFSSExtrapolationFromALM:
         points : list of [x, y, z]
             Cartesian coordinates of the neutral line at the source surface
         """
-        r = self.r_source
+        r  = self.r_source
+        ls = self.ls    # shape (N,)
+        ms = self.ms    # shape (N,)
+        gs = self.g_lms # shape (N,)
+        rs = r
+
         theta_vals = np.linspace(0.05, np.pi - 0.05, n_theta)
         phi_vals   = np.linspace(0.0, 2.0 * np.pi, n_phi, endpoint=False)
 
-        # Evaluate Br across the full grid
-        # Shape: (n_theta, n_phi)
-        br_grid = np.zeros((n_theta, n_phi))
-        for i, theta in enumerate(theta_vals):
-            for j, phi in enumerate(phi_vals):
-                br_grid[i, j], _, _ = self.compute_field_at_point(r, theta, phi)
+        # Radial factors — shape (N,), same for all grid points at r = r_source
+        denom  = 1.0 - rs ** (2 * ls + 1)
+        dR_dr  = (ls * r**(ls-1) + (ls+1) * rs**(2*ls+1) / r**(ls+2)) / denom
+        # shape (N,)
+
+        # Build full (theta, phi) grid — shape (n_theta, n_phi)
+        theta_grid, phi_grid = np.meshgrid(theta_vals, phi_vals, indexing='ij')
+        # Flatten to (n_theta*n_phi,) for batched sph_harm
+        theta_flat = theta_grid.ravel()   # shape (M,)
+        phi_flat   = phi_grid.ravel()     # shape (M,)
+        M = len(theta_flat)
+
+        # Broadcast sph_harm over all (l,m) pairs AND all grid points at once
+        # ls[None,:] shape (1,N), theta_flat[:,None] shape (M,1) → result (M,N)
+        ylm_all = sph_harm(ms[None, :], ls[None, :],
+                           phi_flat[:, None], theta_flat[:, None])  # (M, N)
+
+        # Br = Re[ -sum_lm  g_lm * dR_dr_l * Y_lm ]
+        # g_lms * dR_dr shape (N,), ylm_all shape (M,N)
+        Br_flat = -np.real(ylm_all @ (gs * dR_dr))  # (M,)
+
+        # Reshape back to grid
+        br_grid = Br_flat.reshape(n_theta, n_phi)
 
         # Find zero crossings along phi direction for each theta row
         points = []
         for i, theta in enumerate(theta_vals):
-            for j in range(n_phi):
+            b     = br_grid[i]                          # shape (n_phi,)
+            b_next = np.roll(b, -1)                     # shifted by 1
+            mask  = b * b_next < 0                      # sign changes
+            idxs  = np.where(mask)[0]
+            for j in idxs:
                 j_next = (j + 1) % n_phi
-                b0 = br_grid[i, j]
-                b1 = br_grid[i, j_next]
-                if b0 * b1 < 0:  # sign change → zero crossing between j and j_next
-                    # Linear interpolation to find exact phi of crossing
-                    t = b0 / (b0 - b1)
-                    phi_cross = phi_vals[j] + t * (
-                        phi_vals[j_next] if j_next > j
-                        else phi_vals[j_next] + 2 * np.pi
-                    )
-                    points.append(self.spherical_to_cartesian(r, theta, phi_cross))
+                t = b[j] / (b[j] - b_next[j])
+                phi_j      = phi_vals[j]
+                phi_j_next = phi_vals[j_next] if j_next > j else phi_vals[j_next] + 2 * np.pi
+                phi_cross  = phi_j + t * (phi_j_next - phi_j)
+                points.append(self.spherical_to_cartesian(r, theta, phi_cross))
 
         print(f"  HCS neutral line: {len(points)} points")
         return points
