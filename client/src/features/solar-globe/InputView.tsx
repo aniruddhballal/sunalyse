@@ -37,7 +37,7 @@ export default function InputView({
                 value={carringtonNumber}
                 onChange={(e) => onCarringtonChange(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && onCarringtonFetch()}
-                placeholder="e.g., 2150"
+                placeholder="e.g., 2097 (2097 is goated)"
                 disabled={isFetching || isProcessing}
                 className="flex-1 px-4 py-3 bg-white/10 text-white font-light rounded-lg border border-white/20 focus:outline-none focus:border-white/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed placeholder-gray-500"
               />
