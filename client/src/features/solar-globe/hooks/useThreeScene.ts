@@ -718,7 +718,41 @@ export const useThreeScene = (
 
     currentCoronalDataRef.current = coronalData;
 
-  }, [coronalData, fieldLineMaxStrength]);
+  }, [coronalData]);
+
+  // Handle field line colour scale changes — update vertex colours in place
+  // without rebuilding geometry or triggering transitions
+  useEffect(() => {
+    if (!sceneRef.current || !coronalData) return;
+
+    const globalMaxStrength = fieldLineMaxStrength > 0 ? fieldLineMaxStrength : 500;
+
+    sceneRef.current.fieldLineGroup.traverse((obj) => {
+      if (!(obj instanceof THREE.Line)) return;
+      const fieldLine = obj.userData.fieldLineData;
+      if (!fieldLine) return;
+
+      const isOpen = fieldLine.polarity === 'open';
+      const pts = fieldLine.points as [number, number, number][];
+      const strengths = fieldLine.strengths as number[];
+      const colorAttr = obj.geometry.getAttribute('color') as THREE.BufferAttribute;
+      if (!colorAttr) return;
+
+      pts.forEach((_pt, i) => {
+        const raw = strengths[Math.min(i, strengths.length - 1)] ?? 0;
+        const t   = Math.min(raw / globalMaxStrength, 1.0);
+
+        if (isOpen) {
+          colorAttr.setXYZ(i, t * 0.5, 0.4 + t * 0.6, 0.0);
+        } else {
+          colorAttr.setXYZ(i, 0.5 + t * 0.5, t * 0.65, t * 0.05);
+        }
+      });
+
+      colorAttr.needsUpdate = true;
+    });
+  }, [fieldLineMaxStrength]);
+
 
   // Handle field line visibility changes
   useEffect(() => {
