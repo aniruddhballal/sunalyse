@@ -48,6 +48,8 @@ interface DisplaySettingsPanelProps {
   // Field line colour props
   fieldLineMaxStrength: number;
   setFieldLineMaxStrength: (value: number) => void;
+  showNeutralLine: boolean;
+  setShowNeutralLine: (value: boolean) => void;
 }
 
 type ActivePanel = 'none' | 'photosphere' | 'corona' | 'details';
@@ -75,7 +77,9 @@ export default function DisplaySettingsPanel({
   currentCarringtonNumber,
   dataSource,
   fieldLineMaxStrength,
-  setFieldLineMaxStrength
+  setFieldLineMaxStrength,
+  showNeutralLine,
+  setShowNeutralLine
 }: DisplaySettingsPanelProps) {
   const [isMainOpen, setIsMainOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<ActivePanel>('none');
@@ -184,6 +188,8 @@ export default function DisplaySettingsPanel({
           currentCarringtonNumber={currentCarringtonNumber}
           fieldLineMaxStrength={fieldLineMaxStrength}
           setFieldLineMaxStrength={setFieldLineMaxStrength}
+          showNeutralLine={showNeutralLine}
+          setShowNeutralLine={setShowNeutralLine}
           onClose={handleCloseSubPanel}
         />
       )}

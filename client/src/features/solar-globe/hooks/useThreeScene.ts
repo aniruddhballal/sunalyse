@@ -11,6 +11,7 @@ interface ThreeSceneRef {
   sphere: THREE.Mesh;
   fieldLineGroup: THREE.Group;
   oldFieldLineGroup: THREE.Group;
+  neutralLineGroup: THREE.Group;
   sourceSurface: THREE.Mesh;
   poleAxesGroup: THREE.Group;
   animationId: number;
@@ -95,7 +96,8 @@ export const useThreeScene = (
   showClosedLines: boolean,
   showSourceSurface: boolean,
   showGeographicPoles: boolean,
-  fieldLineMaxStrength: number = 500
+  fieldLineMaxStrength: number = 500,
+  showNeutralLine: boolean = true
 ) => {
   const sceneRef = useRef<ThreeSceneRef | null>(null);
   const currentFitsDataRef = useRef<FITSData | null>(null);
@@ -146,6 +148,10 @@ export const useThreeScene = (
     // Create old field line group for transitions
     const oldFieldLineGroup = new THREE.Group();
     scene.add(oldFieldLineGroup);
+
+    // Create neutral line group for HCS
+    const neutralLineGroup = new THREE.Group();
+    scene.add(neutralLineGroup);
     
     // Create source surface sphere (initially hidden)
     const sourceSurfaceGeometry = new THREE.SphereGeometry(2.5, 64, 64);
@@ -261,6 +267,8 @@ export const useThreeScene = (
       oldFieldLineGroup.rotation.x = sphere.rotation.x;
       sourceSurface.rotation.y = sphere.rotation.y;
       sourceSurface.rotation.x = sphere.rotation.x;
+      neutralLineGroup.rotation.y = sphere.rotation.y;
+      neutralLineGroup.rotation.x = sphere.rotation.x;
       poleAxesGroup.rotation.y = sphere.rotation.y;
       poleAxesGroup.rotation.x = sphere.rotation.x;
       
@@ -326,6 +334,8 @@ export const useThreeScene = (
         oldFieldLineGroup.rotation.x = sphere.rotation.x;
         sourceSurface.rotation.y = sphere.rotation.y;
         sourceSurface.rotation.x = sphere.rotation.x;
+        neutralLineGroup.rotation.y = sphere.rotation.y;
+        neutralLineGroup.rotation.x = sphere.rotation.x;
         poleAxesGroup.rotation.y = sphere.rotation.y;
         poleAxesGroup.rotation.x = sphere.rotation.x;
         
@@ -434,6 +444,8 @@ export const useThreeScene = (
         oldFieldLineGroup.rotation.x = sphere.rotation.x;
         sourceSurface.rotation.y = sphere.rotation.y;
         sourceSurface.rotation.x = sphere.rotation.x;
+        neutralLineGroup.rotation.y = sphere.rotation.y;
+        neutralLineGroup.rotation.x = sphere.rotation.x;
         poleAxesGroup.rotation.y = sphere.rotation.y;
         poleAxesGroup.rotation.x = sphere.rotation.x;
       }
@@ -454,6 +466,7 @@ export const useThreeScene = (
       sphere, 
       fieldLineGroup,
       oldFieldLineGroup,
+      neutralLineGroup,
       sourceSurface,
       poleAxesGroup,
       animationId: 0, 
@@ -716,6 +729,36 @@ export const useThreeScene = (
       fieldLineGroup.add(line);
     });
 
+    // Render HCS neutral line
+    const { neutralLineGroup } = sceneRef.current;
+    while (neutralLineGroup.children.length > 0) {
+      const child = neutralLineGroup.children[0];
+      if (child instanceof THREE.Points) child.geometry.dispose();
+      neutralLineGroup.remove(child);
+    }
+
+    if (coronalData.neutralLine && coronalData.neutralLine.length > 0) {
+      const nlPositions = new Float32Array(coronalData.neutralLine.length * 3);
+      coronalData.neutralLine.forEach(([x, y, z], i) => {
+        nlPositions[i * 3]     = x;
+        nlPositions[i * 3 + 1] = y;
+        nlPositions[i * 3 + 2] = z;
+      });
+      const nlGeometry = new THREE.BufferGeometry();
+      nlGeometry.setAttribute('position', new THREE.BufferAttribute(nlPositions, 3));
+      const nlMaterial = new THREE.PointsMaterial({
+        color: 0xffffff,
+        size: 0.015,
+        transparent: true,
+        opacity: 0.85
+      });
+      const nlPoints = new THREE.Points(nlGeometry, nlMaterial);
+      nlPoints.rotation.y = sceneRef.current.sphere.rotation.y;
+      nlPoints.rotation.x = sceneRef.current.sphere.rotation.x;
+      neutralLineGroup.add(nlPoints);
+      neutralLineGroup.visible = showNeutralLine;
+    }
+
     currentCoronalDataRef.current = coronalData;
 
   }, [coronalData]);
@@ -780,4 +823,10 @@ export const useThreeScene = (
     if (!sceneRef.current) return;
     sceneRef.current.poleAxesGroup.visible = showGeographicPoles;
   }, [showGeographicPoles]);
+
+  // Handle neutral line visibility
+  useEffect(() => {
+    if (!sceneRef.current) return;
+    sceneRef.current.neutralLineGroup.visible = showNeutralLine;
+  }, [showNeutralLine]);
 };

@@ -20,6 +20,8 @@ interface CoronaPanelProps {
   currentCarringtonNumber?: number;
   fieldLineMaxStrength: number;
   setFieldLineMaxStrength: (value: number) => void;
+  showNeutralLine: boolean;
+  setShowNeutralLine: (value: boolean) => void;
   onClose: () => void;
 }
 
@@ -39,6 +41,8 @@ export default function CoronaPanel({
   currentCarringtonNumber,
   fieldLineMaxStrength,
   setFieldLineMaxStrength,
+  showNeutralLine,
+  setShowNeutralLine,
   onClose
 }: CoronaPanelProps) {
   const handleCoronalToggle = () => {
@@ -116,6 +120,15 @@ export default function CoronaPanel({
               }`}
             >
               Surface
+            </button>
+
+            <button
+              onClick={() => setShowNeutralLine(!showNeutralLine)}
+              className={`flex-1 text-white text-sm font-light transition-colors backdrop-blur px-3 py-2 rounded ${
+                showNeutralLine ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-gray-700 hover:bg-gray-600'
+              }`}
+            >
+              HCS
             </button>
           </div>
 

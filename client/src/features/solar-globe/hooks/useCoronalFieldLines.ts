@@ -14,6 +14,7 @@ export interface CoronalData {
     n_field_lines: number;
   };
   fieldLines: FieldLine[];
+  neutralLine?: [number, number, number][];
 }
 
 export const useCoronalFieldLines = () => {

@@ -70,6 +70,7 @@ export default function ViewerView({
   const [fixedMax, setFixedMax] = useState('500');
   const [showGeographicPoles, setShowGeographicPoles] = useState(true);
   const [fieldLineMaxStrength, setFieldLineMaxStrength] = useState(500);
+  const [showNeutralLine, setShowNeutralLine] = useState(true);
 
   const handleNavigate = (direction: 'next' | 'prev') => {
     if (onNavigate && currentCarringtonNumber !== undefined) {
@@ -96,6 +97,7 @@ export default function ViewerView({
         fixedMax={parseFloat(fixedMax)}
         showGeographicPoles={showGeographicPoles}
         fieldLineMaxStrength={fieldLineMaxStrength}
+        showNeutralLine={showNeutralLine}
       />
 
       {/* Unified Display Settings Panel */}
@@ -123,6 +125,8 @@ export default function ViewerView({
         dataSource={dataSource}
         fieldLineMaxStrength={fieldLineMaxStrength}
         setFieldLineMaxStrength={setFieldLineMaxStrength}
+        showNeutralLine={showNeutralLine}
+        setShowNeutralLine={setShowNeutralLine}
       />
 
       <div 
