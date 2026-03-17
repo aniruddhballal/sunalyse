@@ -22,6 +22,12 @@ interface CoronaPanelProps {
   setFieldLineMaxStrength: (value: number) => void;
   showPolarity: boolean;
   setShowPolarity: (value: boolean) => void;
+  apexMinR: number;
+  setApexMinR: (value: number) => void;
+  apexMaxR: number;
+  setApexMaxR: (value: number) => void;
+  showFootpoints: boolean;
+  setShowFootpoints: (value: boolean) => void;
   onClose: () => void;
 }
 
@@ -43,6 +49,12 @@ export default function CoronaPanel({
   setFieldLineMaxStrength,
   showPolarity,
   setShowPolarity,
+  apexMinR,
+  setApexMinR,
+  apexMaxR,
+  setApexMaxR,
+  showFootpoints,
+  setShowFootpoints,
   onClose
 }: CoronaPanelProps) {
   const handleCoronalToggle = () => {
@@ -130,6 +142,15 @@ export default function CoronaPanel({
             >
               Polarity
             </button>
+
+            <button
+              onClick={() => setShowFootpoints(!showFootpoints)}
+              className={`flex-1 text-white text-sm font-light transition-colors backdrop-blur px-3 py-2 rounded ${
+                showFootpoints ? 'bg-purple-600 hover:bg-purple-700' : 'bg-gray-700 hover:bg-gray-600'
+              }`}
+            >
+              Feet
+            </button>
           </div>
 
           {/* Field line colour scale */}
@@ -158,6 +179,38 @@ export default function CoronaPanel({
             <div className="flex items-center gap-2 mt-1">
               <div className="flex-1 h-1 rounded" style={{background: 'linear-gradient(to right, #800000, #ff9900)'}}></div>
               <span className="text-xs text-gray-500">Closed</span>
+            </div>
+          </div>
+
+          {/* Apex height filter */}
+          <div className="mt-4 pt-3 border-t border-gray-800">
+            <div className="text-xs text-gray-300 mb-2">Loop Height Filter</div>
+            <div className="text-xs text-gray-500 mb-2">
+              Min: <span className="text-gray-300">{apexMinR.toFixed(2)} Rs</span>
+              <span className="mx-2">·</span>
+              Max: <span className="text-gray-300">{apexMaxR.toFixed(2)} Rs</span>
+            </div>
+            <input
+              type="range"
+              min={1.0}
+              max={2.5}
+              step={0.05}
+              value={apexMinR}
+              onChange={(e) => setApexMinR(Math.min(Number(e.target.value), apexMaxR - 0.05))}
+              className="w-full accent-blue-400 mb-1"
+            />
+            <input
+              type="range"
+              min={1.0}
+              max={2.5}
+              step={0.05}
+              value={apexMaxR}
+              onChange={(e) => setApexMaxR(Math.max(Number(e.target.value), apexMinR + 0.05))}
+              className="w-full accent-blue-400"
+            />
+            <div className="flex justify-between text-xs text-gray-600 mt-1">
+              <span>1.0 Rs</span>
+              <span>2.5 Rs</span>
             </div>
           </div>
         </div>

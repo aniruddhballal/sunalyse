@@ -71,6 +71,9 @@ export default function ViewerView({
   const [showGeographicPoles, setShowGeographicPoles] = useState(true);
   const [fieldLineMaxStrength, setFieldLineMaxStrength] = useState(500);
   const [showPolarity, setShowPolarity] = useState(false);
+  const [apexMinR, setApexMinR] = useState(1.0);
+  const [apexMaxR, setApexMaxR] = useState(2.5);
+  const [showFootpoints, setShowFootpoints] = useState(false);
   const [showGraticule, setShowGraticule] = useState(false);
 
   const handleNavigate = (direction: 'next' | 'prev') => {
@@ -100,6 +103,9 @@ export default function ViewerView({
         fieldLineMaxStrength={fieldLineMaxStrength}
         showPolarity={showPolarity}
         showGraticule={showGraticule}
+        apexMinR={apexMinR}
+        apexMaxR={apexMaxR}
+        showFootpoints={showFootpoints}
       />
 
       {/* Unified Display Settings Panel */}
@@ -129,6 +135,12 @@ export default function ViewerView({
         setFieldLineMaxStrength={setFieldLineMaxStrength}
         showPolarity={showPolarity}
         setShowPolarity={setShowPolarity}
+        apexMinR={apexMinR}
+        setApexMinR={setApexMinR}
+        apexMaxR={apexMaxR}
+        setApexMaxR={setApexMaxR}
+        showFootpoints={showFootpoints}
+        setShowFootpoints={setShowFootpoints}
       />
 
       <div 

@@ -50,6 +50,12 @@ interface DisplaySettingsPanelProps {
   setFieldLineMaxStrength: (value: number) => void;
   showPolarity: boolean;
   setShowPolarity: (value: boolean) => void;
+  apexMinR: number;
+  setApexMinR: (value: number) => void;
+  apexMaxR: number;
+  setApexMaxR: (value: number) => void;
+  showFootpoints: boolean;
+  setShowFootpoints: (value: boolean) => void;
 }
 
 type ActivePanel = 'none' | 'photosphere' | 'corona' | 'details';
@@ -79,7 +85,13 @@ export default function DisplaySettingsPanel({
   fieldLineMaxStrength,
   setFieldLineMaxStrength,
   showPolarity,
-  setShowPolarity
+  setShowPolarity,
+  apexMinR,
+  setApexMinR,
+  apexMaxR,
+  setApexMaxR,
+  showFootpoints,
+  setShowFootpoints
 }: DisplaySettingsPanelProps) {
   const [isMainOpen, setIsMainOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<ActivePanel>('none');
@@ -190,6 +202,12 @@ export default function DisplaySettingsPanel({
           setFieldLineMaxStrength={setFieldLineMaxStrength}
           showPolarity={showPolarity}
           setShowPolarity={setShowPolarity}
+          apexMinR={apexMinR}
+          setApexMinR={setApexMinR}
+          apexMaxR={apexMaxR}
+          setApexMaxR={setApexMaxR}
+          showFootpoints={showFootpoints}
+          setShowFootpoints={setShowFootpoints}
           onClose={handleCloseSubPanel}
         />
       )}

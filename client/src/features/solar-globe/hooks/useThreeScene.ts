@@ -16,6 +16,7 @@ interface ThreeSceneRef {
   polarityGroup: THREE.Group;
   poleAxesGroup: THREE.Group;
   graticuleGroup: THREE.Group;
+  footpointGroup: THREE.Group;
   animationId: number;
   isDragging: boolean;
   pausedForTransition: boolean;
@@ -149,7 +150,10 @@ export const useThreeScene = (
   showGeographicPoles: boolean,
   fieldLineMaxStrength: number = 500,
   showPolarity: boolean = false,
-  showGraticule: boolean = false
+  showGraticule: boolean = false,
+  apexMinR: number = 1.0,
+  apexMaxR: number = 2.5,
+  showFootpoints: boolean = false
 ) => {
   const sceneRef = useRef<ThreeSceneRef | null>(null);
   const currentFitsDataRef = useRef<FITSData | null>(null);
@@ -239,6 +243,10 @@ export const useThreeScene = (
     const graticuleGroup = createGraticule();
     graticuleGroup.visible = showGraticule;
     scene.add(graticuleGroup);
+
+    const footpointGroup = new THREE.Group();
+    footpointGroup.visible = showFootpoints;
+    scene.add(footpointGroup);
     
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
     scene.add(ambientLight);
@@ -343,6 +351,8 @@ export const useThreeScene = (
       poleAxesGroup.rotation.x = sphere.rotation.x;
       graticuleGroup.rotation.y = sphere.rotation.y;
       graticuleGroup.rotation.x = sphere.rotation.x;
+      footpointGroup.rotation.y = sphere.rotation.y;
+      footpointGroup.rotation.x = sphere.rotation.x;
       
       previousMousePosition = { x: e.clientX, y: e.clientY };
     };
@@ -412,6 +422,8 @@ export const useThreeScene = (
         poleAxesGroup.rotation.x = sphere.rotation.x;
         graticuleGroup.rotation.y = sphere.rotation.y;
         graticuleGroup.rotation.x = sphere.rotation.x;
+        footpointGroup.rotation.y = sphere.rotation.y;
+        footpointGroup.rotation.x = sphere.rotation.x;
         
         previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
       }
@@ -524,6 +536,8 @@ export const useThreeScene = (
         poleAxesGroup.rotation.x = sphere.rotation.x;
         graticuleGroup.rotation.y = sphere.rotation.y;
         graticuleGroup.rotation.x = sphere.rotation.x;
+        footpointGroup.rotation.y = sphere.rotation.y;
+        footpointGroup.rotation.x = sphere.rotation.x;
       }
       
       renderer.render(scene, camera);
@@ -547,6 +561,7 @@ export const useThreeScene = (
       polarityGroup,
       poleAxesGroup,
       graticuleGroup,
+      footpointGroup,
       animationId: 0, 
       isDragging: false,
       pausedForTransition: false,
@@ -796,6 +811,7 @@ export const useThreeScene = (
       const line = new THREE.Line(geometry, material);
       line.userData = {
         polarity: fieldLine.polarity,
+        apexR: fieldLine.apexR ?? 2.5,
         fieldLineData: fieldLine
       };
       line.visible = showCoronalLines && (isOpen ? showOpenLines : showClosedLines);
@@ -877,6 +893,43 @@ export const useThreeScene = (
       sceneRef.current.sourceSurface.visible = showCoronalLines && showSourceSurface && !showPolarity;
     }
 
+    // Build footpoint markers on photosphere
+    const { footpointGroup } = sceneRef.current;
+    while (footpointGroup.children.length > 0) {
+      const child = footpointGroup.children[0];
+      if (child instanceof THREE.Points) child.geometry.dispose();
+      footpointGroup.remove(child);
+    }
+
+    const fpPositions: number[] = [];
+    coronalData.fieldLines.forEach((fl) => {
+      if (!fl.footpoints || fl.footpoints.length < 2) return;
+      fl.footpoints.forEach(([theta, phi]: [number, number]) => {
+        // Z-up spherical to Cartesian at r=1.01 (just above surface)
+        const r = 1.01;
+        fpPositions.push(
+          r * Math.sin(theta) * Math.cos(phi),
+          r * Math.sin(theta) * Math.sin(phi),
+          r * Math.cos(theta)
+        );
+      });
+    });
+
+    if (fpPositions.length > 0) {
+      const fpGeometry = new THREE.BufferGeometry();
+      fpGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(fpPositions), 3));
+      const fpMaterial = new THREE.PointsMaterial({
+        color: 0xffffff,
+        size: 0.012,
+        transparent: true,
+        opacity: 0.7
+      });
+      footpointGroup.add(new THREE.Points(fpGeometry, fpMaterial));
+      footpointGroup.rotation.y = sceneRef.current.sphere.rotation.y;
+      footpointGroup.rotation.x = sceneRef.current.sphere.rotation.x;
+      footpointGroup.visible = showFootpoints;
+    }
+
     currentCoronalDataRef.current = coronalData;
 
   }, [coronalData]);
@@ -947,6 +1000,24 @@ export const useThreeScene = (
     if (!sceneRef.current) return;
     sceneRef.current.graticuleGroup.visible = showGraticule;
   }, [showGraticule]);
+
+  // Handle apex height filter
+  useEffect(() => {
+    if (!sceneRef.current) return;
+    sceneRef.current.fieldLineGroup.traverse((obj) => {
+      if (!(obj instanceof THREE.Line) || !obj.userData.polarity) return;
+      const apex = obj.userData.apexR ?? 2.5;
+      const withinRange = apex >= apexMinR && apex <= apexMaxR;
+      const polarityVisible = obj.userData.polarity === 'open' ? showOpenLines : showClosedLines;
+      obj.visible = showCoronalLines && polarityVisible && withinRange;
+    });
+  }, [apexMinR, apexMaxR, showCoronalLines, showOpenLines, showClosedLines]);
+
+  // Handle footpoint visibility
+  useEffect(() => {
+    if (!sceneRef.current) return;
+    sceneRef.current.footpointGroup.visible = showFootpoints;
+  }, [showFootpoints]);
 
   // Handle polarity surface visibility — swaps with wireframe
   useEffect(() => {

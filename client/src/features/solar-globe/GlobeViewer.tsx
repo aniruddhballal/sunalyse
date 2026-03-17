@@ -20,6 +20,9 @@ interface GlobeViewerProps {
   fieldLineMaxStrength: number;
   showPolarity: boolean;
   showGraticule: boolean;
+  apexMinR: number;
+  apexMaxR: number;
+  showFootpoints: boolean;
 }
 
 export default function GlobeViewer({ 
@@ -37,7 +40,10 @@ export default function GlobeViewer({
   showGeographicPoles,
   fieldLineMaxStrength,
   showPolarity,
-  showGraticule
+  showGraticule,
+  apexMinR,
+  apexMaxR,
+  showFootpoints
 }: GlobeViewerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvas2DRef = useRef<HTMLCanvasElement | null>(null);
@@ -59,7 +65,10 @@ export default function GlobeViewer({
     showGeographicPoles,
     fieldLineMaxStrength,
     showPolarity,
-    showGraticule
+    showGraticule,
+    apexMinR,
+    apexMaxR,
+    showFootpoints
   );
   
   // Use 2D renderer hook for 2D canvas rendering
