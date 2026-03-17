@@ -70,7 +70,6 @@ export default function ViewerView({
   const [fixedMax, setFixedMax] = useState('500');
   const [showGeographicPoles, setShowGeographicPoles] = useState(true);
   const [fieldLineMaxStrength, setFieldLineMaxStrength] = useState(500);
-  const [showNeutralLine, setShowNeutralLine] = useState(true);
   const [showPolarity, setShowPolarity] = useState(false);
 
   const handleNavigate = (direction: 'next' | 'prev') => {
@@ -98,7 +97,6 @@ export default function ViewerView({
         fixedMax={parseFloat(fixedMax)}
         showGeographicPoles={showGeographicPoles}
         fieldLineMaxStrength={fieldLineMaxStrength}
-        showNeutralLine={showNeutralLine}
         showPolarity={showPolarity}
       />
 
@@ -127,8 +125,6 @@ export default function ViewerView({
         dataSource={dataSource}
         fieldLineMaxStrength={fieldLineMaxStrength}
         setFieldLineMaxStrength={setFieldLineMaxStrength}
-        showNeutralLine={showNeutralLine}
-        setShowNeutralLine={setShowNeutralLine}
         showPolarity={showPolarity}
         setShowPolarity={setShowPolarity}
       />

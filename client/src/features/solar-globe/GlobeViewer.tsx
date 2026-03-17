@@ -18,7 +18,6 @@ interface GlobeViewerProps {
   fixedMax: number;
   showGeographicPoles: boolean;
   fieldLineMaxStrength: number;
-  showNeutralLine: boolean;
   showPolarity: boolean;
 }
 
@@ -36,7 +35,6 @@ export default function GlobeViewer({
   fixedMax,
   showGeographicPoles,
   fieldLineMaxStrength,
-  showNeutralLine,
   showPolarity
 }: GlobeViewerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -58,7 +56,6 @@ export default function GlobeViewer({
     showSourceSurface,
     showGeographicPoles,
     fieldLineMaxStrength,
-    showNeutralLine,
     showPolarity
   );
   

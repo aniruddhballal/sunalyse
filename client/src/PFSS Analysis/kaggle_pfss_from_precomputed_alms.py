@@ -520,74 +520,54 @@ class PFSSExtrapolationFromALM:
         z = r * np.cos(theta)
         return [x, y, z]
     
-    def compute_hcs_neutral_line(self, n_theta=60, n_phi=120):
+    def compute_source_surface_br(self, n_theta=60, n_phi=120):
         """
-        Compute the Heliospheric Current Sheet (HCS) neutral line at the source
-        surface (r = r_source) — the contour where Br = 0.
+        Compute Br on a (n_theta x n_phi) grid at the source surface (r = r_source).
 
-        Fully vectorised: evaluates Br for all (theta, phi) grid points in a
-        single batched sph_harm call using broadcasting, then finds zero crossings
-        along each latitude row via linear interpolation.
+        Used to build the polarity surface texture in the frontend — positive Br
+        regions shown warm (red/orange), negative shown cool (green). The zero
+        crossing of Br is the heliospheric current sheet boundary, visible as the
+        colour transition on the rendered surface.
+
+        Zero-crossing dot computation removed — the shader renders the boundary
+        continuously and more accurately than sparse interpolated dots.
 
         Parameters:
         -----------
         n_theta : int
-            Number of colatitude steps (default 180)
+            Number of colatitude steps (default 60)
         n_phi : int
-            Number of longitude steps (default 360)
+            Number of longitude steps (default 120)
 
         Returns:
         --------
-        points : list of [x, y, z]
-            Cartesian coordinates of the neutral line at the source surface
+        br_grid : ndarray, shape (n_theta, n_phi)
+            Radial magnetic field at source surface
         """
         r  = self.r_source
-        ls = self.ls    # shape (N,)
-        ms = self.ms    # shape (N,)
-        gs = self.g_lms # shape (N,)
+        ls = self.ls
+        ms = self.ms
+        gs = self.g_lms
         rs = r
 
         theta_vals = np.linspace(0.05, np.pi - 0.05, n_theta)
         phi_vals   = np.linspace(0.0, 2.0 * np.pi, n_phi, endpoint=False)
 
-        # Radial factors — shape (N,), same for all grid points at r = r_source
-        denom  = 1.0 - rs ** (2 * ls + 1)
-        dR_dr  = (ls * r**(ls-1) + (ls+1) * rs**(2*ls+1) / r**(ls+2)) / denom
-        # shape (N,)
+        denom   = 1.0 - rs ** (2 * ls + 1)
+        dR_dr   = (ls * r**(ls-1) + (ls+1) * rs**(2*ls+1) / r**(ls+2)) / denom
+        weights = gs * dR_dr
 
-        # Compute Br row by row (one theta at a time) to avoid allocating a
-        # (n_theta*n_phi, N) complex matrix which is ~480M entries and OOMs.
-        # Each row is (n_phi, N) = ~2.6M entries — very manageable.
         br_grid = np.zeros((n_theta, n_phi))
-        weights = gs * dR_dr  # shape (N,) — precomputed, shared across all rows
-
         for i, theta in enumerate(theta_vals):
-            # phi_vals shape (n_phi,), broadcast with ls/ms shape (N,)
-            # ylm_row shape (n_phi, N)
             ylm_row = sph_harm(ms[None, :], ls[None, :],
                                phi_vals[:, None],
                                np.full(n_phi, theta)[:, None])
             br_grid[i] = -np.real(ylm_row @ weights)
 
-        # Find zero crossings along phi direction for each theta row
-        points = []
-        for i, theta in enumerate(theta_vals):
-            b     = br_grid[i]                          # shape (n_phi,)
-            b_next = np.roll(b, -1)                     # shifted by 1
-            mask  = b * b_next < 0                      # sign changes
-            idxs  = np.where(mask)[0]
-            for j in idxs:
-                j_next = (j + 1) % n_phi
-                t = b[j] / (b[j] - b_next[j])
-                phi_j      = phi_vals[j]
-                phi_j_next = phi_vals[j_next] if j_next > j else phi_vals[j_next] + 2 * np.pi
-                phi_cross  = phi_j + t * (phi_j_next - phi_j)
-                points.append(self.spherical_to_cartesian(r, theta, phi_cross))
+        print(f"  Source surface Br grid: {n_theta}x{n_phi}")
+        return br_grid
 
-        print(f"  HCS neutral line: {len(points)} points")
-        return points, br_grid, theta_vals.tolist(), phi_vals.tolist()
-
-    def export_for_visualization(self, field_lines, output_path, hcs_points=None,
+    def export_for_visualization(self, field_lines, output_path,
                                   hcs_br_grid=None, hcs_n_theta=60, hcs_n_phi=120):
         """
         Export field lines in format suitable for Three.js visualization.
@@ -612,7 +592,6 @@ class PFSSExtrapolationFromALM:
                 'n_field_lines': len(field_lines)
             },
             'fieldLines': [],
-            'neutralLine': hcs_points if hcs_points is not None else [],
             'polarityGrid': {
                 'data': polarity_flat,
                 'n_theta': hcs_n_theta,
@@ -633,21 +612,6 @@ class PFSSExtrapolationFromALM:
                 'polarity': fl['polarity']
             })
         
-        import time as _time
-
-        _t0 = _time.time()
-        # Compute HCS neutral line
-        hcs_points = export_data['neutralLine']
-        print(f"    [timing] neutralLine already computed: {len(hcs_points)} points")
-
-        _t1 = _time.time()
-        # Build fieldLines list
-        _n = len(export_data['fieldLines'])
-        _total_pts = sum(len(fl['points']) for fl in export_data['fieldLines'])
-        print(f"    [timing] fieldLines built: {_n} lines, {_total_pts} total points — {_t1-_t0:.2f}s")
-
-        _t2 = _time.time()
-        # Round floats
         def round_nested(obj, dp=6):
             if isinstance(obj, float):
                 return round(obj, dp)
@@ -656,21 +620,10 @@ class PFSSExtrapolationFromALM:
             if isinstance(obj, dict):
                 return {k: round_nested(v, dp) for k, v in obj.items()}
             return obj
-        rounded = round_nested(export_data)
-        _t3 = _time.time()
-        print(f"    [timing] round_nested: {_t3-_t2:.2f}s")
 
-        # JSON serialisation
-        json_str = json.dumps(rounded, separators=(',', ':'))
-        _t4 = _time.time()
-        print(f"    [timing] json.dumps: {_t4-_t3:.2f}s  (string length: {len(json_str):,} chars)")
-
-        # File write
+        json_str = json.dumps(round_nested(export_data), separators=(',', ':'))
         with open(output_path, 'w') as f:
             f.write(json_str)
-        _t5 = _time.time()
-        print(f"    [timing] file write: {_t5-_t4:.2f}s")
-        print(f"    [timing] total export: {_t5-_t0:.2f}s")
         
         print(f"✓ Exported to {Path(output_path).name}")
         print(f"  File size: {Path(output_path).stat().st_size / 1024:.1f} KB")
@@ -736,8 +689,8 @@ def process_single_cr(alm_csv_path, output_json_path, n_lines=100, step_size=0.0
     # pool workers compete for CPU during HCS row-by-row computation otherwise,
     # causing ~900s slowdown on a 4-core Kaggle instance.
     t0 = time.time()
-    print("  Computing HCS neutral line...")
-    hcs_points, hcs_br_grid, hcs_theta_vals, hcs_phi_vals = pfss.compute_hcs_neutral_line()
+    print("  Computing source surface Br grid...")
+    hcs_br_grid = pfss.compute_source_surface_br()
     print(f"  HCS time:     {time.time() - t0:.1f}s")
 
     # Generate field lines
@@ -752,10 +705,9 @@ def process_single_cr(alm_csv_path, output_json_path, n_lines=100, step_size=0.0
     # Export for visualization
     t0 = time.time()
     pfss.export_for_visualization(field_lines, output_json_path,
-                               hcs_points=hcs_points,
                                hcs_br_grid=hcs_br_grid,
-                               hcs_n_theta=len(hcs_theta_vals),
-                               hcs_n_phi=len(hcs_phi_vals))
+                               hcs_n_theta=60,
+                               hcs_n_phi=120)
     print(f"  Export time:  {time.time() - t0:.1f}s")
 
     total_time = time.time() - total_start

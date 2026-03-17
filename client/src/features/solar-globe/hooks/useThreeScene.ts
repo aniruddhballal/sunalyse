@@ -11,7 +11,6 @@ interface ThreeSceneRef {
   sphere: THREE.Mesh;
   fieldLineGroup: THREE.Group;
   oldFieldLineGroup: THREE.Group;
-  neutralLineGroup: THREE.Group;
   sourceSurface: THREE.Mesh;
   polarityMesh: THREE.Mesh;
   polarityGroup: THREE.Group;
@@ -99,7 +98,6 @@ export const useThreeScene = (
   showSourceSurface: boolean,
   showGeographicPoles: boolean,
   fieldLineMaxStrength: number = 500,
-  showNeutralLine: boolean = true,
   showPolarity: boolean = false
 ) => {
   const sceneRef = useRef<ThreeSceneRef | null>(null);
@@ -151,10 +149,6 @@ export const useThreeScene = (
     // Create old field line group for transitions
     const oldFieldLineGroup = new THREE.Group();
     scene.add(oldFieldLineGroup);
-
-    // Create neutral line group for HCS
-    const neutralLineGroup = new THREE.Group();
-    scene.add(neutralLineGroup);
 
     // Create polarity mesh wrapped in a group.
     // The mesh has a fixed -PI/2 X rotation to correct the UV coordinate
@@ -288,8 +282,6 @@ export const useThreeScene = (
       oldFieldLineGroup.rotation.x = sphere.rotation.x;
       sourceSurface.rotation.y = sphere.rotation.y;
       sourceSurface.rotation.x = sphere.rotation.x;
-      neutralLineGroup.rotation.y = sphere.rotation.y;
-      neutralLineGroup.rotation.x = sphere.rotation.x;
       polarityGroup.rotation.y = sphere.rotation.y;
       polarityGroup.rotation.x = sphere.rotation.x;
       poleAxesGroup.rotation.y = sphere.rotation.y;
@@ -357,8 +349,6 @@ export const useThreeScene = (
         oldFieldLineGroup.rotation.x = sphere.rotation.x;
         sourceSurface.rotation.y = sphere.rotation.y;
         sourceSurface.rotation.x = sphere.rotation.x;
-        neutralLineGroup.rotation.y = sphere.rotation.y;
-        neutralLineGroup.rotation.x = sphere.rotation.x;
         polarityGroup.rotation.y = sphere.rotation.y;
         polarityGroup.rotation.x = sphere.rotation.x;
         poleAxesGroup.rotation.y = sphere.rotation.y;
@@ -469,8 +459,6 @@ export const useThreeScene = (
         oldFieldLineGroup.rotation.x = sphere.rotation.x;
         sourceSurface.rotation.y = sphere.rotation.y;
         sourceSurface.rotation.x = sphere.rotation.x;
-        neutralLineGroup.rotation.y = sphere.rotation.y;
-        neutralLineGroup.rotation.x = sphere.rotation.x;
         polarityGroup.rotation.y = sphere.rotation.y;
         polarityGroup.rotation.x = sphere.rotation.x;
         poleAxesGroup.rotation.y = sphere.rotation.y;
@@ -493,7 +481,6 @@ export const useThreeScene = (
       sphere, 
       fieldLineGroup,
       oldFieldLineGroup,
-      neutralLineGroup,
       sourceSurface,
       polarityMesh,
       polarityGroup,
@@ -758,35 +745,6 @@ export const useThreeScene = (
       fieldLineGroup.add(line);
     });
 
-    // Render HCS neutral line
-    const { neutralLineGroup } = sceneRef.current;
-    while (neutralLineGroup.children.length > 0) {
-      const child = neutralLineGroup.children[0];
-      if (child instanceof THREE.Points) child.geometry.dispose();
-      neutralLineGroup.remove(child);
-    }
-
-    if (coronalData.neutralLine && coronalData.neutralLine.length > 0) {
-      const nlPositions = new Float32Array(coronalData.neutralLine.length * 3);
-      coronalData.neutralLine.forEach(([x, y, z], i) => {
-        nlPositions[i * 3]     = x;
-        nlPositions[i * 3 + 1] = y;
-        nlPositions[i * 3 + 2] = z;
-      });
-      const nlGeometry = new THREE.BufferGeometry();
-      nlGeometry.setAttribute('position', new THREE.BufferAttribute(nlPositions, 3));
-      const nlMaterial = new THREE.PointsMaterial({
-        color: 0xffffff,
-        size: 0.015,
-        transparent: true,
-        opacity: 0.85
-      });
-      const nlPoints = new THREE.Points(nlGeometry, nlMaterial);
-      // nlPoints has no rotation — neutralLineGroup handles tracking
-      neutralLineGroup.add(nlPoints);
-      neutralLineGroup.visible = showNeutralLine;
-    }
-
     // Build polarity texture from polarityGrid
     const { polarityMesh } = sceneRef.current;
     if (coronalData.polarityGrid && coronalData.polarityGrid.data.length > 0) {
@@ -852,9 +810,6 @@ export const useThreeScene = (
       sceneRef.current.polarityGroup.rotation.y = sceneRef.current.sphere.rotation.y;
       sceneRef.current.polarityGroup.rotation.x = sceneRef.current.sphere.rotation.x;
       sceneRef.current.polarityGroup.visible = showPolarity;
-      console.log('[rot] sphere:', sceneRef.current.sphere.rotation.x.toFixed(3), sceneRef.current.sphere.rotation.y.toFixed(3));
-      console.log('[rot] polarityGroup:', sceneRef.current.polarityGroup.rotation.x.toFixed(3), sceneRef.current.polarityGroup.rotation.y.toFixed(3));
-      console.log('[rot] neutralLineGroup:', sceneRef.current.neutralLineGroup.rotation.x.toFixed(3), sceneRef.current.neutralLineGroup.rotation.y.toFixed(3));
 
       // Swap wireframe / polarity visibility
       sceneRef.current.sourceSurface.visible = showCoronalLines && showSourceSurface && !showPolarity;
@@ -924,12 +879,6 @@ export const useThreeScene = (
     if (!sceneRef.current) return;
     sceneRef.current.poleAxesGroup.visible = showGeographicPoles;
   }, [showGeographicPoles]);
-
-  // Handle neutral line visibility
-  useEffect(() => {
-    if (!sceneRef.current) return;
-    sceneRef.current.neutralLineGroup.visible = showNeutralLine;
-  }, [showNeutralLine]);
 
   // Handle polarity surface visibility — swaps with wireframe
   useEffect(() => {

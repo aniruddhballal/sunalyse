@@ -48,8 +48,6 @@ interface DisplaySettingsPanelProps {
   // Field line colour props
   fieldLineMaxStrength: number;
   setFieldLineMaxStrength: (value: number) => void;
-  showNeutralLine: boolean;
-  setShowNeutralLine: (value: boolean) => void;
   showPolarity: boolean;
   setShowPolarity: (value: boolean) => void;
 }
@@ -80,8 +78,6 @@ export default function DisplaySettingsPanel({
   dataSource,
   fieldLineMaxStrength,
   setFieldLineMaxStrength,
-  showNeutralLine,
-  setShowNeutralLine,
   showPolarity,
   setShowPolarity
 }: DisplaySettingsPanelProps) {
@@ -192,8 +188,6 @@ export default function DisplaySettingsPanel({
           currentCarringtonNumber={currentCarringtonNumber}
           fieldLineMaxStrength={fieldLineMaxStrength}
           setFieldLineMaxStrength={setFieldLineMaxStrength}
-          showNeutralLine={showNeutralLine}
-          setShowNeutralLine={setShowNeutralLine}
           showPolarity={showPolarity}
           setShowPolarity={setShowPolarity}
           onClose={handleCloseSubPanel}
