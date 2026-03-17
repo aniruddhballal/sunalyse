@@ -213,7 +213,21 @@ def _trace_one(r_start, theta_start, phi_start):
     r_end    = points[-1][0] if points else r_start
     polarity = 'open' if r_end > r_source - 0.1 else 'closed'
 
-    return {'points': points, 'strengths': strengths, 'polarity': polarity}
+    # Apex height: maximum radial distance reached (in solar radii)
+    apex_r = max((p[0] for p in points), default=r_start)
+
+    # Footpoints: first and last point converted to (theta, phi) in radians
+    # Both are at r~1.0 (photosphere); store as [theta, phi] pairs
+    fp1 = [points[0][1],  points[0][2]]   # start footpoint
+    fp2 = [points[-1][1], points[-1][2]]  # end footpoint
+
+    return {
+        'points':    points,
+        'strengths': strengths,
+        'polarity':  polarity,
+        'apexR':     round(float(apex_r), 4),
+        'footpoints': [fp1, fp2]
+    }
 
 
 
@@ -607,9 +621,11 @@ class PFSSExtrapolationFromALM:
             ]
             
             export_data['fieldLines'].append({
-                'points': points_cartesian,
-                'strengths': fl['strengths'],
-                'polarity': fl['polarity']
+                'points':     points_cartesian,
+                'strengths':  fl['strengths'],
+                'polarity':   fl['polarity'],
+                'apexR':      fl.get('apexR', 1.0),
+                'footpoints': fl.get('footpoints', [])
             })
         
         def round_nested(obj, dp=6):

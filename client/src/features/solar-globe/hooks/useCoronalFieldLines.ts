@@ -5,6 +5,8 @@ export interface FieldLine {
   points: [number, number, number][];
   strengths: number[];
   polarity: 'open' | 'closed';
+  apexR?: number;
+  footpoints?: [[number, number], [number, number]];
 }
 
 export interface PolarityGrid {
