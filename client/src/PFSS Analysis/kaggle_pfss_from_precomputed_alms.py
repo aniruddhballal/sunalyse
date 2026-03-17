@@ -520,7 +520,7 @@ class PFSSExtrapolationFromALM:
         z = r * np.cos(theta)
         return [x, y, z]
     
-    def compute_hcs_neutral_line(self, n_theta=180, n_phi=360):
+    def compute_hcs_neutral_line(self, n_theta=60, n_phi=120):
         """
         Compute the Heliospheric Current Sheet (HCS) neutral line at the source
         surface (r = r_source) — the contour where Br = 0.
