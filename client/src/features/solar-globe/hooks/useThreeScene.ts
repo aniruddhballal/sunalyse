@@ -14,6 +14,7 @@ interface ThreeSceneRef {
   neutralLineGroup: THREE.Group;
   sourceSurface: THREE.Mesh;
   polarityMesh: THREE.Mesh;
+  polarityGroup: THREE.Group;
   poleAxesGroup: THREE.Group;
   animationId: number;
   isDragging: boolean;
@@ -155,7 +156,12 @@ export const useThreeScene = (
     const neutralLineGroup = new THREE.Group();
     scene.add(neutralLineGroup);
 
-    // Create polarity mesh (hidden initially — shown when showPolarity is on)
+    // Create polarity mesh wrapped in a group.
+    // The mesh has a fixed -PI/2 X rotation to correct the UV coordinate
+    // convention difference between our br_grid (theta=0 at north pole) and
+    // Three.js SphereGeometry (V=0 at south, pole along Y axis).
+    // The GROUP gets the same rotation as the sphere — so it tracks correctly.
+    // The mesh inside never has its rotation changed after init.
     const polarityGeometry = new THREE.SphereGeometry(2.48, 60, 60);
     const polarityMaterial = new THREE.MeshBasicMaterial({
       transparent: true,
@@ -163,8 +169,10 @@ export const useThreeScene = (
       side: THREE.FrontSide
     });
     const polarityMesh = new THREE.Mesh(polarityGeometry, polarityMaterial);
-    polarityMesh.visible = false;
-    scene.add(polarityMesh);
+    const polarityGroup = new THREE.Group();
+    polarityGroup.add(polarityMesh);
+    polarityGroup.visible = false;
+    scene.add(polarityGroup);
     
     // Create source surface sphere (initially hidden)
     const sourceSurfaceGeometry = new THREE.SphereGeometry(2.5, 64, 64);
@@ -282,8 +290,8 @@ export const useThreeScene = (
       sourceSurface.rotation.x = sphere.rotation.x;
       neutralLineGroup.rotation.y = sphere.rotation.y;
       neutralLineGroup.rotation.x = sphere.rotation.x;
-      polarityMesh.rotation.y = sphere.rotation.y;
-      polarityMesh.rotation.x = sphere.rotation.x;
+      polarityGroup.rotation.y = sphere.rotation.y;
+      polarityGroup.rotation.x = sphere.rotation.x;
       poleAxesGroup.rotation.y = sphere.rotation.y;
       poleAxesGroup.rotation.x = sphere.rotation.x;
       
@@ -351,8 +359,8 @@ export const useThreeScene = (
         sourceSurface.rotation.x = sphere.rotation.x;
         neutralLineGroup.rotation.y = sphere.rotation.y;
         neutralLineGroup.rotation.x = sphere.rotation.x;
-        polarityMesh.rotation.y = sphere.rotation.y;
-        polarityMesh.rotation.x = sphere.rotation.x;
+        polarityGroup.rotation.y = sphere.rotation.y;
+        polarityGroup.rotation.x = sphere.rotation.x;
         poleAxesGroup.rotation.y = sphere.rotation.y;
         poleAxesGroup.rotation.x = sphere.rotation.x;
         
@@ -463,8 +471,8 @@ export const useThreeScene = (
         sourceSurface.rotation.x = sphere.rotation.x;
         neutralLineGroup.rotation.y = sphere.rotation.y;
         neutralLineGroup.rotation.x = sphere.rotation.x;
-        polarityMesh.rotation.y = sphere.rotation.y;
-        polarityMesh.rotation.x = sphere.rotation.x;
+        polarityGroup.rotation.y = sphere.rotation.y;
+        polarityGroup.rotation.x = sphere.rotation.x;
         poleAxesGroup.rotation.y = sphere.rotation.y;
         poleAxesGroup.rotation.x = sphere.rotation.x;
       }
@@ -488,6 +496,7 @@ export const useThreeScene = (
       neutralLineGroup,
       sourceSurface,
       polarityMesh,
+      polarityGroup,
       poleAxesGroup,
       animationId: 0, 
       isDragging: false,
@@ -773,8 +782,7 @@ export const useThreeScene = (
         opacity: 0.85
       });
       const nlPoints = new THREE.Points(nlGeometry, nlMaterial);
-      nlPoints.rotation.y = sceneRef.current.sphere.rotation.y;
-      nlPoints.rotation.x = sceneRef.current.sphere.rotation.x;
+      // nlPoints has no rotation — neutralLineGroup handles tracking
       neutralLineGroup.add(nlPoints);
       neutralLineGroup.visible = showNeutralLine;
     }
@@ -785,37 +793,68 @@ export const useThreeScene = (
       const { data, n_theta, n_phi } = coronalData.polarityGrid;
       const maxVal = Math.max(...data.map(Math.abs)) || 1;
 
-      const rgba = new Uint8Array(n_theta * n_phi * 4);
-      data.forEach((br, i) => {
-        const t = Math.min(Math.abs(br) / maxVal, 1.0);
-        const isPositive = br >= 0;
-        if (isPositive) {
-          // Positive: deep red (weak) → bright orange-yellow (strong)
-          rgba[i * 4]     = Math.round((0.5 + t * 0.5) * 255);
-          rgba[i * 4 + 1] = Math.round(t * 0.65 * 255);
-          rgba[i * 4 + 2] = Math.round(t * 0.05 * 255);
-        } else {
-          // Negative: dim green (weak) → bright yellow-green (strong)
-          rgba[i * 4]     = Math.round(t * 0.5 * 255);
-          rgba[i * 4 + 1] = Math.round((0.4 + t * 0.6) * 255);
-          rgba[i * 4 + 2] = 0;
-        }
-        rgba[i * 4 + 3] = Math.round((0.3 + t * 0.5) * 255); // alpha varies with strength
+      // by 3D position in Z-up spherical coords — bypasses UV mapping entirely.
+      // The shader computes theta/phi from the vertex position directly,
+      // so there's no coordinate system mismatch to worry about.
+      const brFloat = new Float32Array(data);
+      const brTexture = new THREE.DataTexture(
+        brFloat, n_phi, n_theta, THREE.RedFormat, THREE.FloatType
+      );
+      brTexture.minFilter = THREE.LinearFilter;
+      brTexture.magFilter = THREE.LinearFilter;
+      brTexture.flipY = true;
+      brTexture.needsUpdate = true;
+
+      const polarityShader = new THREE.ShaderMaterial({
+        uniforms: {
+          brMap:       { value: brTexture },
+          maxStrength: { value: maxVal }
+        },
+        vertexShader: [
+          'varying vec3 vWorldPos;',
+          'void main() {',
+          '  vWorldPos = position;',
+          '  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);',
+          '}'
+        ].join('\n'),
+        fragmentShader: [
+          'uniform sampler2D brMap;',
+          'uniform float maxStrength;',
+          'varying vec3 vWorldPos;',
+          'void main() {',
+          '  float r = length(vWorldPos);',
+          '  float cosTheta = clamp(vWorldPos.z / r, -1.0, 1.0);',
+          '  float theta = acos(cosTheta);',
+          '  float phi = atan(vWorldPos.y, vWorldPos.x);',
+          '  if (phi < 0.0) phi += 6.28318530718;',
+          '  float u = phi / 6.28318530718;',
+          '  float v = 1.0 - theta / 3.14159265359;',
+          '  float br = texture2D(brMap, vec2(u, v)).r;',
+          '  float t = clamp(abs(br) / maxStrength, 0.0, 1.0);',
+          '  vec3 col;',
+          '  if (br >= 0.0) {',
+          '    col = vec3(0.5 + t*0.5, t*0.65, t*0.05);',
+          '  } else {',
+          '    col = vec3(t*0.5, 0.4 + t*0.6, 0.0);',
+          '  }',
+          '  gl_FragColor = vec4(col, 0.3 + t*0.5);',
+          '}'
+        ].join('\n'),
+        transparent: true,
+        side: THREE.FrontSide
       });
 
-      const polarityTexture = new THREE.DataTexture(rgba, n_phi, n_theta, THREE.RGBAFormat);
-      polarityTexture.needsUpdate = true;
-
-      if (polarityMesh.material instanceof THREE.MeshBasicMaterial) {
-        polarityMesh.material.map = polarityTexture;
-        polarityMesh.material.opacity = 1.0;
-        polarityMesh.material.transparent = false;
-        polarityMesh.material.needsUpdate = true;
+      if (polarityMesh.material) {
+        (polarityMesh.material as THREE.Material).dispose();
       }
+      polarityMesh.material = polarityShader;
 
-      polarityMesh.rotation.y = sceneRef.current.sphere.rotation.y;
-      polarityMesh.rotation.x = sceneRef.current.sphere.rotation.x;
-      polarityMesh.visible = showPolarity;
+      sceneRef.current.polarityGroup.rotation.y = sceneRef.current.sphere.rotation.y;
+      sceneRef.current.polarityGroup.rotation.x = sceneRef.current.sphere.rotation.x;
+      sceneRef.current.polarityGroup.visible = showPolarity;
+      console.log('[rot] sphere:', sceneRef.current.sphere.rotation.x.toFixed(3), sceneRef.current.sphere.rotation.y.toFixed(3));
+      console.log('[rot] polarityGroup:', sceneRef.current.polarityGroup.rotation.x.toFixed(3), sceneRef.current.polarityGroup.rotation.y.toFixed(3));
+      console.log('[rot] neutralLineGroup:', sceneRef.current.neutralLineGroup.rotation.x.toFixed(3), sceneRef.current.neutralLineGroup.rotation.y.toFixed(3));
 
       // Swap wireframe / polarity visibility
       sceneRef.current.sourceSurface.visible = showCoronalLines && showSourceSurface && !showPolarity;
@@ -895,7 +934,7 @@ export const useThreeScene = (
   // Handle polarity surface visibility — swaps with wireframe
   useEffect(() => {
     if (!sceneRef.current) return;
-    sceneRef.current.polarityMesh.visible = showPolarity;
+    sceneRef.current.polarityGroup.visible = showPolarity;
     sceneRef.current.sourceSurface.visible = showCoronalLines && showSourceSurface && !showPolarity;
   }, [showPolarity, showSourceSurface, showCoronalLines]);
 };
