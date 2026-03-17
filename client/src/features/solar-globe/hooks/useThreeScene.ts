@@ -15,6 +15,7 @@ interface ThreeSceneRef {
   polarityMesh: THREE.Mesh;
   polarityGroup: THREE.Group;
   poleAxesGroup: THREE.Group;
+  graticuleGroup: THREE.Group;
   animationId: number;
   isDragging: boolean;
   pausedForTransition: boolean;
@@ -37,6 +38,55 @@ interface FieldLineTransitionRef {
 
 const easeInOutCubic = (t: number): number => {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+};
+
+const createGraticule = (): THREE.Group => {
+  const group = new THREE.Group();
+  const R = 1.002; // Slightly above surface to avoid z-fighting
+  const mat = new THREE.LineBasicMaterial({
+    color: 0x444444,
+    transparent: true,
+    opacity: 0.35
+  });
+  const segments = 64;
+
+  // Latitude lines (parallels) every 30°: -60, -30, 0, 30, 60
+  // In Y-up Z-up convention: colatitude θ from Y axis
+  // latitude = 90 - colatitude_deg
+  for (const lat of [-60, -30, 0, 30, 60]) {
+    const colatRad = (90 - lat) * Math.PI / 180;
+    const pts: THREE.Vector3[] = [];
+    for (let i = 0; i <= segments; i++) {
+      const phi = (i / segments) * 2 * Math.PI;
+      pts.push(new THREE.Vector3(
+        R * Math.sin(colatRad) * Math.cos(phi),
+        R * Math.cos(colatRad),
+        R * Math.sin(colatRad) * Math.sin(phi)
+      ));
+    }
+    group.add(new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(pts), mat
+    ));
+  }
+
+  // Longitude lines (meridians) every 30°
+  for (let lon = 0; lon < 360; lon += 30) {
+    const phi = lon * Math.PI / 180;
+    const pts: THREE.Vector3[] = [];
+    for (let i = 0; i <= segments; i++) {
+      const colatRad = (i / segments) * Math.PI;
+      pts.push(new THREE.Vector3(
+        R * Math.sin(colatRad) * Math.cos(phi),
+        R * Math.cos(colatRad),
+        R * Math.sin(colatRad) * Math.sin(phi)
+      ));
+    }
+    group.add(new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(pts), mat
+    ));
+  }
+
+  return group;
 };
 
 const createPoleAxes = (): THREE.Group => {
@@ -98,7 +148,8 @@ export const useThreeScene = (
   showSourceSurface: boolean,
   showGeographicPoles: boolean,
   fieldLineMaxStrength: number = 500,
-  showPolarity: boolean = false
+  showPolarity: boolean = false,
+  showGraticule: boolean = false
 ) => {
   const sceneRef = useRef<ThreeSceneRef | null>(null);
   const currentFitsDataRef = useRef<FITSData | null>(null);
@@ -184,6 +235,10 @@ export const useThreeScene = (
     const poleAxesGroup = createPoleAxes();
     poleAxesGroup.visible = showGeographicPoles;
     scene.add(poleAxesGroup);
+
+    const graticuleGroup = createGraticule();
+    graticuleGroup.visible = showGraticule;
+    scene.add(graticuleGroup);
     
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
     scene.add(ambientLight);
@@ -286,6 +341,8 @@ export const useThreeScene = (
       polarityGroup.rotation.x = sphere.rotation.x;
       poleAxesGroup.rotation.y = sphere.rotation.y;
       poleAxesGroup.rotation.x = sphere.rotation.x;
+      graticuleGroup.rotation.y = sphere.rotation.y;
+      graticuleGroup.rotation.x = sphere.rotation.x;
       
       previousMousePosition = { x: e.clientX, y: e.clientY };
     };
@@ -353,6 +410,8 @@ export const useThreeScene = (
         polarityGroup.rotation.x = sphere.rotation.x;
         poleAxesGroup.rotation.y = sphere.rotation.y;
         poleAxesGroup.rotation.x = sphere.rotation.x;
+        graticuleGroup.rotation.y = sphere.rotation.y;
+        graticuleGroup.rotation.x = sphere.rotation.x;
         
         previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
       }
@@ -463,6 +522,8 @@ export const useThreeScene = (
         polarityGroup.rotation.x = sphere.rotation.x;
         poleAxesGroup.rotation.y = sphere.rotation.y;
         poleAxesGroup.rotation.x = sphere.rotation.x;
+        graticuleGroup.rotation.y = sphere.rotation.y;
+        graticuleGroup.rotation.x = sphere.rotation.x;
       }
       
       renderer.render(scene, camera);
@@ -485,6 +546,7 @@ export const useThreeScene = (
       polarityMesh,
       polarityGroup,
       poleAxesGroup,
+      graticuleGroup,
       animationId: 0, 
       isDragging: false,
       pausedForTransition: false,
@@ -879,6 +941,12 @@ export const useThreeScene = (
     if (!sceneRef.current) return;
     sceneRef.current.poleAxesGroup.visible = showGeographicPoles;
   }, [showGeographicPoles]);
+
+  // Handle graticule visibility
+  useEffect(() => {
+    if (!sceneRef.current) return;
+    sceneRef.current.graticuleGroup.visible = showGraticule;
+  }, [showGraticule]);
 
   // Handle polarity surface visibility — swaps with wireframe
   useEffect(() => {

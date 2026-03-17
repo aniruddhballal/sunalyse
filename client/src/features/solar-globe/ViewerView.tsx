@@ -71,6 +71,7 @@ export default function ViewerView({
   const [showGeographicPoles, setShowGeographicPoles] = useState(true);
   const [fieldLineMaxStrength, setFieldLineMaxStrength] = useState(500);
   const [showPolarity, setShowPolarity] = useState(false);
+  const [showGraticule, setShowGraticule] = useState(false);
 
   const handleNavigate = (direction: 'next' | 'prev') => {
     if (onNavigate && currentCarringtonNumber !== undefined) {
@@ -98,6 +99,7 @@ export default function ViewerView({
         showGeographicPoles={showGeographicPoles}
         fieldLineMaxStrength={fieldLineMaxStrength}
         showPolarity={showPolarity}
+        showGraticule={showGraticule}
       />
 
       {/* Unified Display Settings Panel */}
@@ -169,12 +171,20 @@ export default function ViewerView({
             </button>
           </div>
           
-          <button
-            onClick={() => setShowGeographicPoles(!showGeographicPoles)}
-            className="text-white text-xs font-light hover:text-gray-300 transition-colors bg-black/70 backdrop-blur px-3 py-2.5 rounded"
-          >
-            {showGeographicPoles ? 'Hide Poles' : 'Show Poles'}
-          </button>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setShowGeographicPoles(!showGeographicPoles)}
+              className="text-white text-xs font-light hover:text-gray-300 transition-colors bg-black/70 backdrop-blur px-3 py-2.5 rounded"
+            >
+              {showGeographicPoles ? 'Hide Poles' : 'Show Poles'}
+            </button>
+            <button
+              onClick={() => setShowGraticule(!showGraticule)}
+              className="text-white text-xs font-light hover:text-gray-300 transition-colors bg-black/70 backdrop-blur px-3 py-2.5 rounded"
+            >
+              {showGraticule ? 'Hide Grid' : 'Show Grid'}
+            </button>
+          </div>
           
           <button
             onClick={onReset}
@@ -184,6 +194,36 @@ export default function ViewerView({
           </button>
         </div>
       </div>
+
+      {/* Solar cycle timeline */}
+      {currentCarringtonNumber !== undefined && (
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 pointer-events-none" style={{width: '280px'}}>
+          <div className="text-gray-600 text-xs font-light text-center mb-1">
+            {(() => {
+              const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+              const msFrom2097 = (currentCarringtonNumber - 2097) * 27.3 * 24 * 3600 * 1000;
+              const d = new Date(Date.UTC(2010, 4, 19) + msFrom2097);
+              return `CR ${currentCarringtonNumber} · ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()} · Solar Cycle 24`;
+            })()}
+          </div>
+          <div className="relative h-1.5 rounded-full overflow-hidden" style={{background: 'rgba(255,255,255,0.1)'}}>
+            {/* SC24 max ~CR 2150 (May 2014), dataset spans Apr 2010 – Jun 2024 */}
+            <div className="absolute top-0 h-full rounded-full" style={{
+              background: 'linear-gradient(to right, #1a1a2e, #e85d04, #1a1a2e)',
+              width: '100%',
+              opacity: 0.6
+            }}/>
+            {/* Current position indicator */}
+            <div className="absolute top-0 h-full w-0.5 bg-white" style={{
+              left: ((currentCarringtonNumber - 2096) / (2285 - 2096) * 100) + '%'
+            }}/>
+          </div>
+          <div className="flex justify-between text-gray-600 text-xs font-light mt-0.5">
+            <span>CR 2096 · Apr 2010</span>
+            <span>CR 2285 · Jun 2024</span>
+          </div>
+        </div>
+      )}
 
       <div className="absolute bottom-6 right-6 text-gray-500 text-xs font-light z-20 pointer-events-none">
         {showCoronalLines && coronalData && (
