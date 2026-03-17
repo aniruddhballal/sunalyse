@@ -105,7 +105,20 @@ def _trace_one(r_start, theta_start, phi_start):
     r_end    = points[-1][0] if points else r_start
     polarity = 'open' if r_end > r_source - 0.1 else 'closed'
 
-    return {'points': points, 'strengths': strengths, 'polarity': polarity}
+    # Apex height: maximum radial distance reached (in solar radii)
+    apex_r = max((p[0] for p in points), default=r_start)
+
+    # Footpoints: first and last point as [theta, phi] pairs
+    fp1 = [points[0][1],  points[0][2]]
+    fp2 = [points[-1][1], points[-1][2]]
+
+    return {
+        'points':     points,
+        'strengths':  strengths,
+        'polarity':   polarity,
+        'apexR':      round(float(apex_r), 4),
+        'footpoints': [fp1, fp2]
+    }
 
 
 
@@ -349,7 +362,8 @@ class PFSSExtrapolationFromALM:
         
         return points, field_strengths
     
-    def generate_field_lines(self, n_lines=100, step_size=0.01, max_steps=1000):
+    def generate_field_lines(self, n_lines=100, step_size=0.01, max_steps=1000,
+                             adaptive_seeds=None):
         """
         Generate multiple field lines across the solar surface.
 
@@ -371,16 +385,20 @@ class PFSSExtrapolationFromALM:
         field_lines : list of dict
             Each dict contains 'points', 'strengths', 'polarity'
         """
-        # Create seed points distributed across photosphere
-        n_theta = int(np.sqrt(n_lines))
-        n_phi   = int(n_lines / n_theta)
-        theta_starts = np.linspace(0.1, np.pi - 0.1, n_theta)
-        phi_starts   = np.linspace(0, 2 * np.pi, n_phi, endpoint=False)
-        seeds = [
-            (1.0, float(th), float(ph))
-            for th in theta_starts
-            for ph in phi_starts
-        ]
+        if adaptive_seeds is not None:
+            seeds = [(1.0, float(th), float(ph)) for th, ph in adaptive_seeds]
+            print(f"Using {len(seeds)} adaptive seeds from seed CSV")
+        else:
+            n_theta = int(np.sqrt(n_lines))
+            n_phi   = int(n_lines / n_theta)
+            theta_starts = np.linspace(0.1, np.pi - 0.1, n_theta)
+            phi_starts   = np.linspace(0, 2 * np.pi, n_phi, endpoint=False)
+            seeds = [
+                (1.0, float(th), float(ph))
+                for th in theta_starts
+                for ph in phi_starts
+            ]
+            print(f"Using {len(seeds)} uniform grid seeds (no seed CSV provided)")
 
         n_workers = mp.cpu_count()
         print(f"Tracing {len(seeds)} field lines across {n_workers} CPU cores "
@@ -402,6 +420,50 @@ class PFSSExtrapolationFromALM:
         
         return field_lines
     
+    def compute_source_surface_br(self, n_theta=60, n_phi=120):
+        """
+        Compute Br on a (n_theta x n_phi) grid at the source surface (r = r_source).
+
+        Used to build the polarity surface texture in the frontend — positive Br
+        regions shown warm (red/orange), negative shown cool (green). The zero
+        crossing of Br is the heliospheric current sheet boundary, visible as the
+        colour transition on the rendered surface.
+
+        Parameters:
+        -----------
+        n_theta : int
+            Number of colatitude steps (default 60)
+        n_phi : int
+            Number of longitude steps (default 120)
+
+        Returns:
+        --------
+        br_grid : ndarray, shape (n_theta, n_phi)
+            Radial magnetic field at source surface
+        """
+        r  = self.r_source
+        ls = self.ls
+        ms = self.ms
+        gs = self.g_lms
+        rs = r
+
+        theta_vals = np.linspace(0.05, np.pi - 0.05, n_theta)
+        phi_vals   = np.linspace(0.0, 2.0 * np.pi, n_phi, endpoint=False)
+
+        denom   = 1.0 - rs ** (2 * ls + 1)
+        dR_dr   = (ls * r**(ls-1) + (ls+1) * rs**(2*ls+1) / r**(ls+2)) / denom
+        weights = gs * dR_dr
+
+        br_grid = np.zeros((n_theta, n_phi))
+        for i, theta in enumerate(theta_vals):
+            ylm_row = sph_harm(ms[None, :], ls[None, :],
+                               phi_vals[:, None],
+                               np.full(n_phi, theta)[:, None])
+            br_grid[i] = -np.real(ylm_row @ weights)
+
+        print(f"  Source surface Br grid: {n_theta}x{n_phi}")
+        return br_grid
+
     def spherical_to_cartesian(self, r, theta, phi):
         """Convert spherical to Cartesian coordinates."""
         x = r * np.sin(theta) * np.cos(phi)
@@ -409,50 +471,77 @@ class PFSSExtrapolationFromALM:
         z = r * np.cos(theta)
         return [x, y, z]
     
-    def export_for_visualization(self, field_lines, output_path):
+    def export_for_visualization(self, field_lines, output_path,
+                                  hcs_br_grid=None, hcs_n_theta=60, hcs_n_phi=120):
         """
         Export field lines in format suitable for Three.js visualization.
-        
+
         Parameters:
         -----------
         field_lines : list
             Field line data from generate_field_lines()
         output_path : str
             Path to save JSON file
+        hcs_br_grid : ndarray or None
+            60x120 Br grid at source surface for polarity texture
+        hcs_n_theta, hcs_n_phi : int
+            Grid dimensions
         """
+        # Flatten br_grid for JSON
+        polarity_flat = []
+        if hcs_br_grid is not None:
+            polarity_flat = [round(float(v), 4)
+                             for row in hcs_br_grid for v in row]
+
         export_data = {
             'metadata': {
                 'lmax': self.lmax,
                 'r_source': self.r_source,
                 'n_field_lines': len(field_lines)
             },
-            'fieldLines': []
+            'fieldLines': [],
+            'polarityGrid': {
+                'data': polarity_flat,
+                'n_theta': hcs_n_theta,
+                'n_phi': hcs_n_phi
+            }
         }
-        
+
         for fl in field_lines:
-            # Convert to Cartesian coordinates for Three.js
             points_cartesian = [
                 self.spherical_to_cartesian(r, theta, phi)
                 for r, theta, phi in fl['points']
             ]
-            
             export_data['fieldLines'].append({
-                'points': points_cartesian,
-                'strengths': fl['strengths'],
-                'polarity': fl['polarity']
+                'points':     points_cartesian,
+                'strengths':  fl['strengths'],
+                'polarity':   fl['polarity'],
+                'apexR':      fl.get('apexR', 1.0),
+                'footpoints': fl.get('footpoints', [])
             })
-        
+
+        def round_nested(obj, dp=6):
+            if isinstance(obj, float):
+                return round(obj, dp)
+            if isinstance(obj, list):
+                return [round_nested(v, dp) for v in obj]
+            if isinstance(obj, dict):
+                return {k: round_nested(v, dp) for k, v in obj.items()}
+            return obj
+
+        json_str = json.dumps(round_nested(export_data), separators=(',', ':'))
         with open(output_path, 'w') as f:
-            json.dump(export_data, f)
-        
+            f.write(json_str)
+
         print(f"✓ Exported to {output_path}")
         print(f"  File size: {Path(output_path).stat().st_size / 1024:.1f} KB")
 
 
-def process_single_cr(alm_csv_path, output_json_path, n_lines=100, step_size=0.01, max_steps=1000):
+def process_single_cr(alm_csv_path, output_json_path, n_lines=100, step_size=0.01,
+                      max_steps=1000, seed_dir=None):
     """
     Process a single Carrington rotation using precomputed alm coefficients.
-    
+
     Parameters:
     -----------
     alm_csv_path : str
@@ -460,13 +549,17 @@ def process_single_cr(alm_csv_path, output_json_path, n_lines=100, step_size=0.0
     output_json_path : str
         Path for output JSON file
     n_lines : int
-        Number of field lines to trace (100-500 recommended)
+        Number of field lines when falling back to uniform grid
     step_size : float
-        Integration step size — smaller = smoother, longer traces (default 0.01)
+        Integration step size (default 0.01)
     max_steps : int
         Maximum steps per field line (default 1000)
+    seed_dir : str or Path or None
+        Directory containing seeds_xxxx.csv files. If provided and the matching
+        file exists, adaptive seeds are used instead of the uniform grid.
     """
     import time
+    import re as _re
 
     print(f"\n{chr(61)*60}")
     print(f"Processing: {alm_csv_path}")
@@ -474,24 +567,48 @@ def process_single_cr(alm_csv_path, output_json_path, n_lines=100, step_size=0.0
 
     total_start = time.time()
 
-    # Initialize PFSS with high lmax (will be updated from CSV)
     pfss = PFSSExtrapolationFromALM(lmax=85, r_source=2.5)
 
-    # Load precomputed alm coefficients
     t0 = time.time()
     pfss.alm = pfss.load_alm_from_csv(alm_csv_path)
     pfss.prepare_arrays()
     print(f"  Load time:    {time.time() - t0:.1f}s")
 
+    # Load adaptive seeds if available
+    adaptive_seeds = None
+    if seed_dir is not None:
+        match = _re.search(r'(\d{4})', Path(alm_csv_path).stem)
+        if match:
+            cr_num   = match.group(1)
+            seed_csv = Path(seed_dir) / f"seeds_{cr_num}.csv"
+            if seed_csv.exists():
+                seed_df        = pd.read_csv(seed_csv)
+                adaptive_seeds = list(zip(seed_df['theta'], seed_df['phi']))
+                print(f"  Seeds:        {len(adaptive_seeds)} adaptive (from {seed_csv.name})")
+            else:
+                print(f"  Seeds:        uniform grid (no seed CSV for CR {cr_num})")
+
+    # Compute source surface Br grid before spawning pool
+    t0 = time.time()
+    print("  Computing source surface Br grid...")
+    hcs_br_grid = pfss.compute_source_surface_br()
+    print(f"  HCS time:     {time.time() - t0:.1f}s")
+
     # Generate field lines
     t0 = time.time()
-    field_lines = pfss.generate_field_lines(n_lines=n_lines, step_size=step_size, max_steps=max_steps)
+    field_lines = pfss.generate_field_lines(
+        n_lines=n_lines, step_size=step_size, max_steps=max_steps,
+        adaptive_seeds=adaptive_seeds
+    )
     tracing_time = time.time() - t0
-    print(f"  Tracing time: {tracing_time:.1f}s  ({tracing_time/n_lines:.2f}s per line)")
+    print(f"  Tracing time: {tracing_time:.1f}s  ({tracing_time/max(len(field_lines),1):.2f}s per line)")
 
     # Export for visualization
     t0 = time.time()
-    pfss.export_for_visualization(field_lines, output_json_path)
+    pfss.export_for_visualization(field_lines, output_json_path,
+                                  hcs_br_grid=hcs_br_grid,
+                                  hcs_n_theta=60,
+                                  hcs_n_phi=120)
     print(f"  Export time:  {time.time() - t0:.1f}s")
 
     total_time = time.time() - total_start
@@ -500,9 +617,9 @@ def process_single_cr(alm_csv_path, output_json_path, n_lines=100, step_size=0.0
     print(f"{chr(61)*60}\n")
 
 
-def batch_process_all_crs(alm_dir="alm values", output_dir="coronal_data_lmax85", 
+def batch_process_all_crs(alm_dir="alm values", output_dir="coronal_data_lmax85",
                           n_lines=100, step_size=0.01, max_steps=1000,
-                          start_cr=2096, end_cr=2285):
+                          start_cr=2096, end_cr=2285, seed_dir=None):
     """
     Batch process all Carrington rotations using precomputed alm coefficients.
     
@@ -522,6 +639,8 @@ def batch_process_all_crs(alm_dir="alm values", output_dir="coronal_data_lmax85"
         Starting Carrington rotation number
     end_cr : int
         Ending Carrington rotation number
+    seed_dir : str or Path or None
+        Directory containing seeds_xxxx.csv files for adaptive seeding
     """
     alm_path = Path(alm_dir)
     output_path = Path(output_dir)
@@ -583,7 +702,8 @@ def batch_process_all_crs(alm_dir="alm values", output_dir="coronal_data_lmax85"
                 output_json_path=str(output_json),
                 n_lines=n_lines,
                 step_size=step_size,
-                max_steps=max_steps
+                max_steps=max_steps,
+                seed_dir=seed_dir
             )
             
             processed += 1
@@ -610,26 +730,27 @@ def batch_process_all_crs(alm_dir="alm values", output_dir="coronal_data_lmax85"
 # Example usage
 if __name__ == "__main__":
     # ============================================================
-    # BATCH PROCESS ALL CARRINGTON ROTATIONS (CR 2096-2285)
-    # Using precomputed alm coefficients (lmax=85)
-    # ============================================================
-    # batch_process_all_crs(
-    #     alm_dir="alm values",              # Folder with values_xxxx.csv files
-    #     output_dir="coronal_data_lmax85",  # Where to save JSON files
-    #     n_lines=100,                       # Number of field lines (100-500)
-    #     step_size=0.01,                    # Integration step size (smaller = smoother)
-    #     max_steps=1000,                    # Max steps per line (increase with smaller step_size)
-    #     start_cr=2096,                     # Starting Carrington rotation
-    #     end_cr=2285                        # Ending Carrington rotation
-    # )
-    
-    # ============================================================
-    # OR PROCESS SINGLE CARRINGTON ROTATION
+    # SINGLE CR TEST
     # ============================================================
     process_single_cr(
         alm_csv_path="alm_values/values_2097.csv",
         output_json_path="coronal_data_lmax85/cr2097_coronal.json",
-        n_lines=200,
-        step_size=0.005,
-        max_steps=2000
+        n_lines=100,
+        step_size=0.01,
+        max_steps=1000,
+        seed_dir="seed_data"   # folder containing seeds_xxxx.csv files
     )
+
+    # ============================================================
+    # BATCH PROCESS ALL CRs
+    # ============================================================
+    # batch_process_all_crs(
+    #     alm_dir="alm_values",
+    #     output_dir="coronal_data_lmax85",
+    #     n_lines=100,
+    #     step_size=0.01,
+    #     max_steps=1000,
+    #     start_cr=2096,
+    #     end_cr=2285,
+    #     seed_dir="seed_data"
+    # )
