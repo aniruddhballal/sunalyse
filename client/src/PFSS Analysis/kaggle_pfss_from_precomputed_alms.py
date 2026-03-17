@@ -587,7 +587,7 @@ class PFSSExtrapolationFromALM:
         print(f"  HCS neutral line: {len(points)} points")
         return points
 
-    def export_for_visualization(self, field_lines, output_path):
+    def export_for_visualization(self, field_lines, output_path, hcs_points=None):
         """
         Export field lines in format suitable for Three.js visualization.
         
@@ -598,10 +598,6 @@ class PFSSExtrapolationFromALM:
         output_path : str
             Path to save JSON file
         """
-        # Compute HCS neutral line at source surface
-        print("  Computing HCS neutral line...")
-        hcs_points = self.compute_hcs_neutral_line()
-
         export_data = {
             'metadata': {
                 'lmax': self.lmax,
@@ -609,7 +605,7 @@ class PFSSExtrapolationFromALM:
                 'n_field_lines': len(field_lines)
             },
             'fieldLines': [],
-            'neutralLine': hcs_points
+            'neutralLine': hcs_points if hcs_points is not None else []
         }
         
         for fl in field_lines:
@@ -724,6 +720,14 @@ def process_single_cr(alm_csv_path, output_json_path, n_lines=100, step_size=0.0
             else:
                 print(f"  Seeds:        uniform grid (no seed CSV for CR {cr_num})")
 
+    # Compute HCS neutral line BEFORE spawning the multiprocessing pool —
+    # pool workers compete for CPU during HCS row-by-row computation otherwise,
+    # causing ~900s slowdown on a 4-core Kaggle instance.
+    t0 = time.time()
+    print("  Computing HCS neutral line...")
+    hcs_points = pfss.compute_hcs_neutral_line()
+    print(f"  HCS time:     {time.time() - t0:.1f}s")
+
     # Generate field lines
     t0 = time.time()
     field_lines = pfss.generate_field_lines(
@@ -735,7 +739,7 @@ def process_single_cr(alm_csv_path, output_json_path, n_lines=100, step_size=0.0
 
     # Export for visualization
     t0 = time.time()
-    pfss.export_for_visualization(field_lines, output_json_path)
+    pfss.export_for_visualization(field_lines, output_json_path, hcs_points=hcs_points)
     print(f"  Export time:  {time.time() - t0:.1f}s")
 
     total_time = time.time() - total_start
