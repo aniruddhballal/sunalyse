@@ -71,6 +71,7 @@ export default function ViewerView({
   const [showGeographicPoles, setShowGeographicPoles] = useState(true);
   const [fieldLineMaxStrength, setFieldLineMaxStrength] = useState(500);
   const [showNeutralLine, setShowNeutralLine] = useState(true);
+  const [showPolarity, setShowPolarity] = useState(false);
 
   const handleNavigate = (direction: 'next' | 'prev') => {
     if (onNavigate && currentCarringtonNumber !== undefined) {
@@ -98,6 +99,7 @@ export default function ViewerView({
         showGeographicPoles={showGeographicPoles}
         fieldLineMaxStrength={fieldLineMaxStrength}
         showNeutralLine={showNeutralLine}
+        showPolarity={showPolarity}
       />
 
       {/* Unified Display Settings Panel */}
@@ -127,6 +129,8 @@ export default function ViewerView({
         setFieldLineMaxStrength={setFieldLineMaxStrength}
         showNeutralLine={showNeutralLine}
         setShowNeutralLine={setShowNeutralLine}
+        showPolarity={showPolarity}
+        setShowPolarity={setShowPolarity}
       />
 
       <div 

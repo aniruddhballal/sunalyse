@@ -22,6 +22,8 @@ interface CoronaPanelProps {
   setFieldLineMaxStrength: (value: number) => void;
   showNeutralLine: boolean;
   setShowNeutralLine: (value: boolean) => void;
+  showPolarity: boolean;
+  setShowPolarity: (value: boolean) => void;
   onClose: () => void;
 }
 
@@ -43,6 +45,8 @@ export default function CoronaPanel({
   setFieldLineMaxStrength,
   showNeutralLine,
   setShowNeutralLine,
+  showPolarity,
+  setShowPolarity,
   onClose
 }: CoronaPanelProps) {
   const handleCoronalToggle = () => {
@@ -129,6 +133,15 @@ export default function CoronaPanel({
               }`}
             >
               HCS
+            </button>
+
+            <button
+              onClick={() => setShowPolarity(!showPolarity)}
+              className={`flex-1 text-white text-sm font-light transition-colors backdrop-blur px-3 py-2 rounded ${
+                showPolarity ? 'bg-orange-600 hover:bg-orange-700' : 'bg-gray-700 hover:bg-gray-600'
+              }`}
+            >
+              Polarity
             </button>
           </div>
 

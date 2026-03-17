@@ -50,6 +50,8 @@ interface DisplaySettingsPanelProps {
   setFieldLineMaxStrength: (value: number) => void;
   showNeutralLine: boolean;
   setShowNeutralLine: (value: boolean) => void;
+  showPolarity: boolean;
+  setShowPolarity: (value: boolean) => void;
 }
 
 type ActivePanel = 'none' | 'photosphere' | 'corona' | 'details';
@@ -79,7 +81,9 @@ export default function DisplaySettingsPanel({
   fieldLineMaxStrength,
   setFieldLineMaxStrength,
   showNeutralLine,
-  setShowNeutralLine
+  setShowNeutralLine,
+  showPolarity,
+  setShowPolarity
 }: DisplaySettingsPanelProps) {
   const [isMainOpen, setIsMainOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<ActivePanel>('none');
@@ -190,6 +194,8 @@ export default function DisplaySettingsPanel({
           setFieldLineMaxStrength={setFieldLineMaxStrength}
           showNeutralLine={showNeutralLine}
           setShowNeutralLine={setShowNeutralLine}
+          showPolarity={showPolarity}
+          setShowPolarity={setShowPolarity}
           onClose={handleCloseSubPanel}
         />
       )}

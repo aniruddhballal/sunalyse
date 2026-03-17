@@ -19,6 +19,7 @@ interface GlobeViewerProps {
   showGeographicPoles: boolean;
   fieldLineMaxStrength: number;
   showNeutralLine: boolean;
+  showPolarity: boolean;
 }
 
 export default function GlobeViewer({ 
@@ -35,7 +36,8 @@ export default function GlobeViewer({
   fixedMax,
   showGeographicPoles,
   fieldLineMaxStrength,
-  showNeutralLine
+  showNeutralLine,
+  showPolarity
 }: GlobeViewerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvas2DRef = useRef<HTMLCanvasElement | null>(null);
@@ -56,7 +58,8 @@ export default function GlobeViewer({
     showSourceSurface,
     showGeographicPoles,
     fieldLineMaxStrength,
-    showNeutralLine
+    showNeutralLine,
+    showPolarity
   );
   
   // Use 2D renderer hook for 2D canvas rendering

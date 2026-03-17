@@ -585,9 +585,10 @@ class PFSSExtrapolationFromALM:
                 points.append(self.spherical_to_cartesian(r, theta, phi_cross))
 
         print(f"  HCS neutral line: {len(points)} points")
-        return points
+        return points, br_grid, theta_vals.tolist(), phi_vals.tolist()
 
-    def export_for_visualization(self, field_lines, output_path, hcs_points=None):
+    def export_for_visualization(self, field_lines, output_path, hcs_points=None,
+                                  hcs_br_grid=None, hcs_n_theta=60, hcs_n_phi=120):
         """
         Export field lines in format suitable for Three.js visualization.
         
@@ -598,6 +599,12 @@ class PFSSExtrapolationFromALM:
         output_path : str
             Path to save JSON file
         """
+        # Flatten br_grid and round to 4dp for compact storage
+        polarity_flat = []
+        if hcs_br_grid is not None:
+            polarity_flat = [round(float(v), 4)
+                             for row in hcs_br_grid for v in row]
+
         export_data = {
             'metadata': {
                 'lmax': self.lmax,
@@ -605,7 +612,12 @@ class PFSSExtrapolationFromALM:
                 'n_field_lines': len(field_lines)
             },
             'fieldLines': [],
-            'neutralLine': hcs_points if hcs_points is not None else []
+            'neutralLine': hcs_points if hcs_points is not None else [],
+            'polarityGrid': {
+                'data': polarity_flat,
+                'n_theta': hcs_n_theta,
+                'n_phi': hcs_n_phi
+            }
         }
         
         for fl in field_lines:
@@ -725,7 +737,7 @@ def process_single_cr(alm_csv_path, output_json_path, n_lines=100, step_size=0.0
     # causing ~900s slowdown on a 4-core Kaggle instance.
     t0 = time.time()
     print("  Computing HCS neutral line...")
-    hcs_points = pfss.compute_hcs_neutral_line()
+    hcs_points, hcs_br_grid, hcs_theta_vals, hcs_phi_vals = pfss.compute_hcs_neutral_line()
     print(f"  HCS time:     {time.time() - t0:.1f}s")
 
     # Generate field lines
@@ -739,7 +751,11 @@ def process_single_cr(alm_csv_path, output_json_path, n_lines=100, step_size=0.0
 
     # Export for visualization
     t0 = time.time()
-    pfss.export_for_visualization(field_lines, output_json_path, hcs_points=hcs_points)
+    pfss.export_for_visualization(field_lines, output_json_path,
+                               hcs_points=hcs_points,
+                               hcs_br_grid=hcs_br_grid,
+                               hcs_n_theta=len(hcs_theta_vals),
+                               hcs_n_phi=len(hcs_phi_vals))
     print(f"  Export time:  {time.time() - t0:.1f}s")
 
     total_time = time.time() - total_start

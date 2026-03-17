@@ -13,6 +13,7 @@ interface ThreeSceneRef {
   oldFieldLineGroup: THREE.Group;
   neutralLineGroup: THREE.Group;
   sourceSurface: THREE.Mesh;
+  polarityMesh: THREE.Mesh;
   poleAxesGroup: THREE.Group;
   animationId: number;
   isDragging: boolean;
@@ -97,7 +98,8 @@ export const useThreeScene = (
   showSourceSurface: boolean,
   showGeographicPoles: boolean,
   fieldLineMaxStrength: number = 500,
-  showNeutralLine: boolean = true
+  showNeutralLine: boolean = true,
+  showPolarity: boolean = false
 ) => {
   const sceneRef = useRef<ThreeSceneRef | null>(null);
   const currentFitsDataRef = useRef<FITSData | null>(null);
@@ -152,6 +154,17 @@ export const useThreeScene = (
     // Create neutral line group for HCS
     const neutralLineGroup = new THREE.Group();
     scene.add(neutralLineGroup);
+
+    // Create polarity mesh (hidden initially — shown when showPolarity is on)
+    const polarityGeometry = new THREE.SphereGeometry(2.48, 60, 60);
+    const polarityMaterial = new THREE.MeshBasicMaterial({
+      transparent: true,
+      opacity: 0.0,
+      side: THREE.FrontSide
+    });
+    const polarityMesh = new THREE.Mesh(polarityGeometry, polarityMaterial);
+    polarityMesh.visible = false;
+    scene.add(polarityMesh);
     
     // Create source surface sphere (initially hidden)
     const sourceSurfaceGeometry = new THREE.SphereGeometry(2.5, 64, 64);
@@ -269,6 +282,8 @@ export const useThreeScene = (
       sourceSurface.rotation.x = sphere.rotation.x;
       neutralLineGroup.rotation.y = sphere.rotation.y;
       neutralLineGroup.rotation.x = sphere.rotation.x;
+      polarityMesh.rotation.y = sphere.rotation.y;
+      polarityMesh.rotation.x = sphere.rotation.x;
       poleAxesGroup.rotation.y = sphere.rotation.y;
       poleAxesGroup.rotation.x = sphere.rotation.x;
       
@@ -336,6 +351,8 @@ export const useThreeScene = (
         sourceSurface.rotation.x = sphere.rotation.x;
         neutralLineGroup.rotation.y = sphere.rotation.y;
         neutralLineGroup.rotation.x = sphere.rotation.x;
+        polarityMesh.rotation.y = sphere.rotation.y;
+        polarityMesh.rotation.x = sphere.rotation.x;
         poleAxesGroup.rotation.y = sphere.rotation.y;
         poleAxesGroup.rotation.x = sphere.rotation.x;
         
@@ -446,6 +463,8 @@ export const useThreeScene = (
         sourceSurface.rotation.x = sphere.rotation.x;
         neutralLineGroup.rotation.y = sphere.rotation.y;
         neutralLineGroup.rotation.x = sphere.rotation.x;
+        polarityMesh.rotation.y = sphere.rotation.y;
+        polarityMesh.rotation.x = sphere.rotation.x;
         poleAxesGroup.rotation.y = sphere.rotation.y;
         poleAxesGroup.rotation.x = sphere.rotation.x;
       }
@@ -468,6 +487,7 @@ export const useThreeScene = (
       oldFieldLineGroup,
       neutralLineGroup,
       sourceSurface,
+      polarityMesh,
       poleAxesGroup,
       animationId: 0, 
       isDragging: false,
@@ -759,6 +779,48 @@ export const useThreeScene = (
       neutralLineGroup.visible = showNeutralLine;
     }
 
+    // Build polarity texture from polarityGrid
+    const { polarityMesh } = sceneRef.current;
+    if (coronalData.polarityGrid && coronalData.polarityGrid.data.length > 0) {
+      const { data, n_theta, n_phi } = coronalData.polarityGrid;
+      const maxVal = Math.max(...data.map(Math.abs)) || 1;
+
+      const rgba = new Uint8Array(n_theta * n_phi * 4);
+      data.forEach((br, i) => {
+        const t = Math.min(Math.abs(br) / maxVal, 1.0);
+        const isPositive = br >= 0;
+        if (isPositive) {
+          // Positive: deep red (weak) → bright orange-yellow (strong)
+          rgba[i * 4]     = Math.round((0.5 + t * 0.5) * 255);
+          rgba[i * 4 + 1] = Math.round(t * 0.65 * 255);
+          rgba[i * 4 + 2] = Math.round(t * 0.05 * 255);
+        } else {
+          // Negative: dim green (weak) → bright yellow-green (strong)
+          rgba[i * 4]     = Math.round(t * 0.5 * 255);
+          rgba[i * 4 + 1] = Math.round((0.4 + t * 0.6) * 255);
+          rgba[i * 4 + 2] = 0;
+        }
+        rgba[i * 4 + 3] = Math.round((0.3 + t * 0.5) * 255); // alpha varies with strength
+      });
+
+      const polarityTexture = new THREE.DataTexture(rgba, n_phi, n_theta, THREE.RGBAFormat);
+      polarityTexture.needsUpdate = true;
+
+      if (polarityMesh.material instanceof THREE.MeshBasicMaterial) {
+        polarityMesh.material.map = polarityTexture;
+        polarityMesh.material.opacity = 1.0;
+        polarityMesh.material.transparent = false;
+        polarityMesh.material.needsUpdate = true;
+      }
+
+      polarityMesh.rotation.y = sceneRef.current.sphere.rotation.y;
+      polarityMesh.rotation.x = sceneRef.current.sphere.rotation.x;
+      polarityMesh.visible = showPolarity;
+
+      // Swap wireframe / polarity visibility
+      sceneRef.current.sourceSurface.visible = showCoronalLines && showSourceSurface && !showPolarity;
+    }
+
     currentCoronalDataRef.current = coronalData;
 
   }, [coronalData]);
@@ -829,4 +891,11 @@ export const useThreeScene = (
     if (!sceneRef.current) return;
     sceneRef.current.neutralLineGroup.visible = showNeutralLine;
   }, [showNeutralLine]);
+
+  // Handle polarity surface visibility — swaps with wireframe
+  useEffect(() => {
+    if (!sceneRef.current) return;
+    sceneRef.current.polarityMesh.visible = showPolarity;
+    sceneRef.current.sourceSurface.visible = showCoronalLines && showSourceSurface && !showPolarity;
+  }, [showPolarity, showSourceSurface, showCoronalLines]);
 };

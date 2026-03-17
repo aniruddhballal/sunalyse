@@ -7,6 +7,12 @@ export interface FieldLine {
   polarity: 'open' | 'closed';
 }
 
+export interface PolarityGrid {
+  data: number[];
+  n_theta: number;
+  n_phi: number;
+}
+
 export interface CoronalData {
   metadata: {
     lmax: number;
@@ -15,6 +21,7 @@ export interface CoronalData {
   };
   fieldLines: FieldLine[];
   neutralLine?: [number, number, number][];
+  polarityGrid?: PolarityGrid;
 }
 
 export const useCoronalFieldLines = () => {
