@@ -190,6 +190,7 @@ export const useThreeScene = (
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(width, height);
     containerRef.current.appendChild(renderer.domElement);
+    renderer.domElement.style.touchAction = 'none'; // hand all touch control to pointer events
     
     const geometry = new THREE.SphereGeometry(1, 256, 256);
     const dataTexture = createDataTexture(fitsData, useFixedScale, parseFloat(fixedMin), parseFloat(fixedMax));
