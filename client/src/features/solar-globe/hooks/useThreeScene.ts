@@ -255,265 +255,154 @@ export const useThreeScene = (
     pointLight.position.set(5, 5, 5);
     scene.add(pointLight);
     
-    let isDragging = false;
-    let isPanning  = false;
-    let previousMousePosition = { x: 0, y: 0 };
-    let cameraDistance = 3; // Initial camera distance
+    // ── Camera state ─────────────────────────────────────────────────────────
+    let cameraDistance = 3;
     let panX = 0;
     let panY = 0;
 
-    const applyPan = () => {
-      camera.position.x = panX;
-      camera.position.y = panY;
+    const MIN_DISTANCE = 1.5;
+    const MAX_DISTANCE = 500;
+
+    const applyCamera = () => {
+      camera.position.set(panX, panY, cameraDistance);
     };
 
     const resetPan = () => {
       panX = 0; panY = 0;
-      applyPan();
+      applyCamera();
     };
-    
-    const MIN_DISTANCE = 1.5; // Minimum zoom (closest)
-    const MAX_DISTANCE = 500; // Maximum zoom (farthest) - allows sun to become a tiny dot
-    
+
+    const handleZoom = (delta: number) => {
+      cameraDistance = Math.max(MIN_DISTANCE, Math.min(MAX_DISTANCE, cameraDistance + delta * 0.1));
+      applyCamera();
+      if (sceneRef.current) sceneRef.current.cameraDistance = cameraDistance;
+    };
+
+    // ── Raycaster ─────────────────────────────────────────────────────────
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
-    
-    const isClickOnSphere = (clientX: number, clientY: number): boolean => {
+
+    const isOnSphere = (clientX: number, clientY: number): boolean => {
       const rect = renderer.domElement.getBoundingClientRect();
-      mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
-      mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
-      
+      mouse.x =  ((clientX - rect.left) / rect.width)  * 2 - 1;
+      mouse.y = -((clientY - rect.top)  / rect.height) * 2 + 1;
       raycaster.setFromCamera(mouse, camera);
-      const intersects = raycaster.intersectObject(sphere);
-      return intersects.length > 0;
+      return raycaster.intersectObject(sphere).length > 0;
     };
-    
-    const updateCursor = (clientX: number, clientY: number) => {
-      if (isClickOnSphere(clientX, clientY)) {
-        renderer.domElement.style.cursor = 'grab';
-      } else {
+
+    // ── Apply rotation to all scene objects ───────────────────────────────
+    const applyRotation = () => {
+      const rx = sphere.rotation.x;
+      const ry = sphere.rotation.y;
+      for (const obj of [fieldLineGroup, oldFieldLineGroup, sourceSurface,
+                         polarityGroup, poleAxesGroup, graticuleGroup, footpointGroup]) {
+        obj.rotation.x = rx;
+        obj.rotation.y = ry;
+      }
+    };
+
+    // ── Pointer Events API ────────────────────────────────────────────────
+    // One unified handler for mouse + touch. Each finger/cursor gets its own
+    // entry in the pointers map keyed by pointerId — no finger-count race conditions.
+    // 1 pointer  → rotate (left button) or pan (right button)
+    // 2 pointers → pinch-zoom + pan simultaneously
+    type PointerInfo = { x: number; y: number; button: number };
+    const pointers = new Map<number, PointerInfo>();
+    let lastPinchDist = 0;
+    let lastPinchMid  = { x: 0, y: 0 };
+
+    const getPinchState = () => {
+      const [a, b] = [...pointers.values()];
+      return {
+        dist: Math.hypot(b.x - a.x, b.y - a.y),
+        midX: (a.x + b.x) / 2,
+        midY: (a.y + b.y) / 2,
+      };
+    };
+
+    const onPointerDown = (e: PointerEvent) => {
+      if ((e.target as HTMLElement) !== renderer.domElement) return;
+      renderer.domElement.setPointerCapture(e.pointerId);
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, button: e.button });
+
+      if (pointers.size === 2) {
+        const ps = getPinchState();
+        lastPinchDist = ps.dist;
+        lastPinchMid  = { x: ps.midX, y: ps.midY };
+        if (sceneRef.current) sceneRef.current.isDragging = false;
+      } else if (pointers.size === 1) {
+        if (sceneRef.current) sceneRef.current.isDragging = e.button !== 2;
+        if (e.button === 2) renderer.domElement.style.cursor = 'move';
+        else if (isOnSphere(e.clientX, e.clientY)) renderer.domElement.style.cursor = 'grabbing';
+      }
+    };
+
+    const onPointerMove = (e: PointerEvent) => {
+      if (!pointers.has(e.pointerId)) return;
+      const prev = pointers.get(e.pointerId)!;
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, button: prev.button });
+
+      if (pointers.size === 2) {
+        const ps = getPinchState();
+        // Zoom from distance change
+        handleZoom((lastPinchDist - ps.dist) * 0.15);
+        // Pan from midpoint change
+        const panSpeed = cameraDistance * 0.001;
+        panX -= (ps.midX - lastPinchMid.x) * panSpeed;
+        panY += (ps.midY - lastPinchMid.y) * panSpeed;
+        applyCamera();
+        lastPinchDist = ps.dist;
+        lastPinchMid  = { x: ps.midX, y: ps.midY };
+      } else if (pointers.size === 1) {
+        const dx = e.clientX - prev.x;
+        const dy = e.clientY - prev.y;
+        if (prev.button === 2) {
+          const panSpeed = cameraDistance * 0.001;
+          panX -= dx * panSpeed;
+          panY += dy * panSpeed;
+          applyCamera();
+        } else {
+          sphere.rotation.y += dx * 0.01;
+          sphere.rotation.x += dy * 0.01;
+          applyRotation();
+        }
+      }
+    };
+
+    const onPointerUp = (e: PointerEvent) => {
+      pointers.delete(e.pointerId);
+      try { renderer.domElement.releasePointerCapture(e.pointerId); } catch (_) {}
+      if (pointers.size === 0) {
+        if (sceneRef.current) sceneRef.current.isDragging = false;
         renderer.domElement.style.cursor = 'default';
+      } else if (pointers.size === 1) {
+        // One finger lifted — re-init so remaining finger doesn't jump
+        const [rem] = [...pointers.values()];
+        lastPinchDist = 0;
+        lastPinchMid  = { x: rem.x, y: rem.y };
       }
     };
-    
-    // Zoom function
-    const handleZoom = (delta: number) => {
-      const zoomSpeed = 0.1;
-      cameraDistance += delta * zoomSpeed;
-      cameraDistance = Math.max(MIN_DISTANCE, Math.min(MAX_DISTANCE, cameraDistance));
-      
-      // Update camera position
-      const direction = new THREE.Vector3();
-      camera.getWorldDirection(direction);
-      const position = direction.multiplyScalar(-cameraDistance);
-      camera.position.copy(position);
-      
-      if (sceneRef.current) {
-        sceneRef.current.cameraDistance = cameraDistance;
+
+    const onPointerHover = (e: PointerEvent) => {
+      if (pointers.size === 0) {
+        renderer.domElement.style.cursor = isOnSphere(e.clientX, e.clientY) ? 'grab' : 'default';
       }
     };
-    
-    // Mouse wheel zoom
+
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       handleZoom(e.deltaY * 0.01);
     };
-    
-    // Touch pinch zoom
-    let lastTouchDistance = 0;
-    let lastTouchCount = 0;
-    
-    const getTouchDistance = (touches: TouchList): number => {
-      const dx = touches[0].clientX - touches[1].clientX;
-      const dy = touches[0].clientY - touches[1].clientY;
-      return Math.sqrt(dx * dx + dy * dy);
-    };
-    
-    const onMouseDown = (e: MouseEvent) => {
-      previousMousePosition = { x: e.clientX, y: e.clientY };
-      if (e.button === 2) {
-        // Right-click — pan
-        isPanning = true;
-        renderer.domElement.style.cursor = 'move';
-        e.preventDefault();
-      } else if (e.button === 0 && isClickOnSphere(e.clientX, e.clientY)) {
-        // Left-click on sphere — rotate
-        isDragging = true;
-        if (sceneRef.current) sceneRef.current.isDragging = true;
-        renderer.domElement.style.cursor = 'grabbing';
-      }
-    };
-    
-    const onMouseMove = (e: MouseEvent) => {
-      if (!isDragging && !isPanning) {
-        updateCursor(e.clientX, e.clientY);
-        return;
-      }
 
-      const deltaX = e.clientX - previousMousePosition.x;
-      const deltaY = e.clientY - previousMousePosition.y;
+    renderer.domElement.addEventListener('pointerdown',   onPointerDown);
+    renderer.domElement.addEventListener('pointermove',   onPointerMove);
+    renderer.domElement.addEventListener('pointermove',   onPointerHover);
+    renderer.domElement.addEventListener('pointerup',     onPointerUp);
+    renderer.domElement.addEventListener('pointercancel', onPointerUp);
+    renderer.domElement.addEventListener('contextmenu',   (e) => e.preventDefault());
+    renderer.domElement.addEventListener('dblclick',      () => resetPan());
+    renderer.domElement.addEventListener('wheel',         onWheel, { passive: false });
 
-      if (isPanning) {
-        // Pan speed scales with zoom distance so it feels consistent
-        const panSpeed = cameraDistance * 0.001;
-        panX -= deltaX * panSpeed;
-        panY += deltaY * panSpeed;
-        applyPan();
-        previousMousePosition = { x: e.clientX, y: e.clientY };
-        return;
-      }
-      
-      sphere.rotation.y += deltaX * 0.01;
-      sphere.rotation.x += deltaY * 0.01;
-      
-      // Rotate field lines, source surface, and pole axes with the sphere
-      fieldLineGroup.rotation.y = sphere.rotation.y;
-      fieldLineGroup.rotation.x = sphere.rotation.x;
-      oldFieldLineGroup.rotation.y = sphere.rotation.y;
-      oldFieldLineGroup.rotation.x = sphere.rotation.x;
-      sourceSurface.rotation.y = sphere.rotation.y;
-      sourceSurface.rotation.x = sphere.rotation.x;
-      polarityGroup.rotation.y = sphere.rotation.y;
-      polarityGroup.rotation.x = sphere.rotation.x;
-      poleAxesGroup.rotation.y = sphere.rotation.y;
-      poleAxesGroup.rotation.x = sphere.rotation.x;
-      graticuleGroup.rotation.y = sphere.rotation.y;
-      graticuleGroup.rotation.x = sphere.rotation.x;
-      footpointGroup.rotation.y = sphere.rotation.y;
-      footpointGroup.rotation.x = sphere.rotation.x;
-      
-      previousMousePosition = { x: e.clientX, y: e.clientY };
-    };
-    
-    const onMouseUp = () => {
-      isDragging = false;
-      isPanning  = false;
-      if (sceneRef.current) sceneRef.current.isDragging = false;
-      renderer.domElement.style.cursor = 'default';
-    };
-    
-    let touchStartedOnCanvas = false;
-    
-    const onTouchStart = (e: TouchEvent) => {
-      const target = e.target as HTMLElement;
-      if (target !== renderer.domElement) {
-        touchStartedOnCanvas = false;
-        return;
-      }
-      
-      lastTouchCount = e.touches.length;
-      if (e.touches.length === 2) {
-        // Second finger joined — reset all tracking state cleanly
-        // to avoid a huge delta spike from stale single-finger position
-        touchStartedOnCanvas = true;
-        isDragging = false; // stop any single-finger rotation in progress
-        lastTouchDistance = getTouchDistance(e.touches);
-        previousMousePosition = {
-          x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
-          y: (e.touches[0].clientY + e.touches[1].clientY) / 2,
-        };
-      } else if (e.touches.length === 1) {
-        if (isClickOnSphere(e.touches[0].clientX, e.touches[0].clientY)) {
-          touchStartedOnCanvas = true;
-          isDragging = true;
-          if (sceneRef.current) {
-            sceneRef.current.isDragging = true;
-          }
-          previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-        }
-      }
-    };
-    
-    const onTouchMove = (e: TouchEvent) => {
-      if (!touchStartedOnCanvas) return;
-      // Skip this frame if finger count just changed — delta would be garbage
-      if (e.touches.length !== lastTouchCount) {
-        lastTouchCount = e.touches.length;
-        lastTouchDistance = getTouchDistance(e.touches);
-        previousMousePosition = {
-          x: (e.touches[0].clientX + (e.touches[1]?.clientX ?? e.touches[0].clientX)) / 2,
-          y: (e.touches[0].clientY + (e.touches[1]?.clientY ?? e.touches[0].clientY)) / 2,
-        };
-        return;
-      }
-      
-      if (e.touches.length === 2) {
-        e.preventDefault();
-        const currentDistance = getTouchDistance(e.touches);
-        const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-        const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-
-        const distanceDelta = Math.abs(currentDistance - lastTouchDistance);
-        const midDeltaX = Math.abs(midX - previousMousePosition.x);
-        const midDeltaY = Math.abs(midY - previousMousePosition.y);
-        const midDelta = Math.sqrt(midDeltaX * midDeltaX + midDeltaY * midDeltaY);
-
-        // Only zoom if pinch distance changed significantly more than midpoint moved
-        if (distanceDelta > midDelta * 0.8) {
-          const delta = lastTouchDistance - currentDistance;
-          handleZoom(delta * 0.1);
-        }
-
-        // Only pan if midpoint moved significantly more than pinch distance changed
-        if (midDelta > distanceDelta * 0.8) {
-          const dx = midX - previousMousePosition.x;
-          const dy = midY - previousMousePosition.y;
-          const panSpeed = cameraDistance * 0.001;
-          panX -= dx * panSpeed; // corrected direction
-          panY += dy * panSpeed; // corrected direction
-          applyPan();
-        }
-
-        lastTouchDistance = currentDistance;
-        previousMousePosition = { x: midX, y: midY };
-      } else if (isDragging && e.touches.length === 1) {
-        // Rotation
-        e.preventDefault();
-        const deltaX = e.touches[0].clientX - previousMousePosition.x;
-        const deltaY = e.touches[0].clientY - previousMousePosition.y;
-        
-        sphere.rotation.y += deltaX * 0.01;
-        sphere.rotation.x += deltaY * 0.01;
-        
-        // Rotate field lines, source surface, and pole axes with the sphere
-        fieldLineGroup.rotation.y = sphere.rotation.y;
-        fieldLineGroup.rotation.x = sphere.rotation.x;
-        oldFieldLineGroup.rotation.y = sphere.rotation.y;
-        oldFieldLineGroup.rotation.x = sphere.rotation.x;
-        sourceSurface.rotation.y = sphere.rotation.y;
-        sourceSurface.rotation.x = sphere.rotation.x;
-        polarityGroup.rotation.y = sphere.rotation.y;
-        polarityGroup.rotation.x = sphere.rotation.x;
-        poleAxesGroup.rotation.y = sphere.rotation.y;
-        poleAxesGroup.rotation.x = sphere.rotation.x;
-        graticuleGroup.rotation.y = sphere.rotation.y;
-        graticuleGroup.rotation.x = sphere.rotation.x;
-        footpointGroup.rotation.y = sphere.rotation.y;
-        footpointGroup.rotation.x = sphere.rotation.x;
-        
-        previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-      }
-    };
-    
-    const onTouchEnd = () => {
-      isDragging = false;
-      if (sceneRef.current) {
-        sceneRef.current.isDragging = false;
-      }
-      touchStartedOnCanvas = false;
-    };
-    
-    renderer.domElement.addEventListener('mousedown', onMouseDown);
-    renderer.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
-    renderer.domElement.addEventListener('dblclick', () => resetPan());
-    renderer.domElement.addEventListener('mousemove', onMouseMove);
-    renderer.domElement.addEventListener('mouseup', onMouseUp);
-    renderer.domElement.addEventListener('mouseleave', onMouseUp);
-    renderer.domElement.addEventListener('wheel', onWheel, { passive: false });
-    renderer.domElement.addEventListener('touchstart', onTouchStart, { passive: true });
-    renderer.domElement.addEventListener('touchmove', onTouchMove, { passive: false });
-    renderer.domElement.addEventListener('touchend', onTouchEnd);
-    renderer.domElement.addEventListener('touchcancel', onTouchEnd);
     
     const animate = () => {
       const animationId = requestAnimationFrame(animate);
@@ -585,27 +474,13 @@ export const useThreeScene = (
         }
       }
       
-      const shouldRotate = !isDragging && 
+      const shouldRotate = pointers.size === 0 && 
                           isRotatingRef.current && 
                           !(sceneRef.current?.pausedForTransition);
       
       if (shouldRotate) {
         sphere.rotation.y += 0.0005;
-        // Rotate field lines, source surface, and pole axes with the sphere
-        fieldLineGroup.rotation.y = sphere.rotation.y;
-        fieldLineGroup.rotation.x = sphere.rotation.x;
-        oldFieldLineGroup.rotation.y = sphere.rotation.y;
-        oldFieldLineGroup.rotation.x = sphere.rotation.x;
-        sourceSurface.rotation.y = sphere.rotation.y;
-        sourceSurface.rotation.x = sphere.rotation.x;
-        polarityGroup.rotation.y = sphere.rotation.y;
-        polarityGroup.rotation.x = sphere.rotation.x;
-        poleAxesGroup.rotation.y = sphere.rotation.y;
-        poleAxesGroup.rotation.x = sphere.rotation.x;
-        graticuleGroup.rotation.y = sphere.rotation.y;
-        graticuleGroup.rotation.x = sphere.rotation.x;
-        footpointGroup.rotation.y = sphere.rotation.y;
-        footpointGroup.rotation.x = sphere.rotation.x;
+        applyRotation();
       }
       
       renderer.render(scene, camera);
@@ -649,15 +524,12 @@ export const useThreeScene = (
     
     return () => {
       window.removeEventListener('resize', handleResize);
-      renderer.domElement.removeEventListener('mousedown', onMouseDown);
-      renderer.domElement.removeEventListener('mousemove', onMouseMove);
-      renderer.domElement.removeEventListener('mouseup', onMouseUp);
-      renderer.domElement.removeEventListener('mouseleave', onMouseUp);
-      renderer.domElement.removeEventListener('wheel', onWheel);
-      renderer.domElement.removeEventListener('touchstart', onTouchStart);
-      renderer.domElement.removeEventListener('touchmove', onTouchMove);
-      renderer.domElement.removeEventListener('touchend', onTouchEnd);
-      renderer.domElement.removeEventListener('touchcancel', onTouchEnd);
+      renderer.domElement.removeEventListener('pointerdown',   onPointerDown);
+      renderer.domElement.removeEventListener('pointermove',   onPointerMove);
+      renderer.domElement.removeEventListener('pointermove',   onPointerHover);
+      renderer.domElement.removeEventListener('pointerup',     onPointerUp);
+      renderer.domElement.removeEventListener('pointercancel', onPointerUp);
+      renderer.domElement.removeEventListener('wheel',         onWheel);
     };
   };
 
