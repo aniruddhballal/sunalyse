@@ -256,8 +256,21 @@ export const useThreeScene = (
     scene.add(pointLight);
     
     let isDragging = false;
+    let isPanning  = false;
     let previousMousePosition = { x: 0, y: 0 };
     let cameraDistance = 3; // Initial camera distance
+    let panX = 0;
+    let panY = 0;
+
+    const applyPan = () => {
+      camera.position.x = panX;
+      camera.position.y = panY;
+    };
+
+    const resetPan = () => {
+      panX = 0; panY = 0;
+      applyPan();
+    };
     
     const MIN_DISTANCE = 1.5; // Minimum zoom (closest)
     const MAX_DISTANCE = 500; // Maximum zoom (farthest) - allows sun to become a tiny dot
@@ -316,24 +329,38 @@ export const useThreeScene = (
     };
     
     const onMouseDown = (e: MouseEvent) => {
-      if (isClickOnSphere(e.clientX, e.clientY)) {
+      previousMousePosition = { x: e.clientX, y: e.clientY };
+      if (e.button === 2) {
+        // Right-click — pan
+        isPanning = true;
+        renderer.domElement.style.cursor = 'move';
+        e.preventDefault();
+      } else if (e.button === 0 && isClickOnSphere(e.clientX, e.clientY)) {
+        // Left-click on sphere — rotate
         isDragging = true;
-        if (sceneRef.current) {
-          sceneRef.current.isDragging = true;
-        }
-        previousMousePosition = { x: e.clientX, y: e.clientY };
+        if (sceneRef.current) sceneRef.current.isDragging = true;
         renderer.domElement.style.cursor = 'grabbing';
       }
     };
     
     const onMouseMove = (e: MouseEvent) => {
-      if (!isDragging) {
+      if (!isDragging && !isPanning) {
         updateCursor(e.clientX, e.clientY);
         return;
       }
-      
+
       const deltaX = e.clientX - previousMousePosition.x;
       const deltaY = e.clientY - previousMousePosition.y;
+
+      if (isPanning) {
+        // Pan speed scales with zoom distance so it feels consistent
+        const panSpeed = cameraDistance * 0.001;
+        panX += deltaX * panSpeed;
+        panY -= deltaY * panSpeed;
+        applyPan();
+        previousMousePosition = { x: e.clientX, y: e.clientY };
+        return;
+      }
       
       sphere.rotation.y += deltaX * 0.01;
       sphere.rotation.x += deltaY * 0.01;
@@ -359,9 +386,8 @@ export const useThreeScene = (
     
     const onMouseUp = () => {
       isDragging = false;
-      if (sceneRef.current) {
-        sceneRef.current.isDragging = false;
-      }
+      isPanning  = false;
+      if (sceneRef.current) sceneRef.current.isDragging = false;
       renderer.domElement.style.cursor = 'default';
     };
     
@@ -375,9 +401,13 @@ export const useThreeScene = (
       }
       
       if (e.touches.length === 2) {
-        // Pinch zoom
         touchStartedOnCanvas = true;
         lastTouchDistance = getTouchDistance(e.touches);
+        // Record midpoint for two-finger pan
+        previousMousePosition = {
+          x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+          y: (e.touches[0].clientY + e.touches[1].clientY) / 2,
+        };
       } else if (e.touches.length === 1) {
         if (isClickOnSphere(e.touches[0].clientX, e.touches[0].clientY)) {
           touchStartedOnCanvas = true;
@@ -394,12 +424,22 @@ export const useThreeScene = (
       if (!touchStartedOnCanvas) return;
       
       if (e.touches.length === 2) {
-        // Pinch zoom
         e.preventDefault();
+        // Pinch zoom
         const currentDistance = getTouchDistance(e.touches);
         const delta = lastTouchDistance - currentDistance;
         handleZoom(delta * 0.1);
         lastTouchDistance = currentDistance;
+        // Two-finger pan — midpoint translation
+        const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        const dx = midX - previousMousePosition.x;
+        const dy = midY - previousMousePosition.y;
+        const panSpeed = cameraDistance * 0.001;
+        panX += dx * panSpeed;
+        panY -= dy * panSpeed;
+        applyPan();
+        previousMousePosition = { x: midX, y: midY };
       } else if (isDragging && e.touches.length === 1) {
         // Rotation
         e.preventDefault();
@@ -438,6 +478,8 @@ export const useThreeScene = (
     };
     
     renderer.domElement.addEventListener('mousedown', onMouseDown);
+    renderer.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
+    renderer.domElement.addEventListener('dblclick', () => resetPan());
     renderer.domElement.addEventListener('mousemove', onMouseMove);
     renderer.domElement.addEventListener('mouseup', onMouseUp);
     renderer.domElement.addEventListener('mouseleave', onMouseUp);
@@ -928,6 +970,12 @@ export const useThreeScene = (
       footpointGroup.rotation.y = sceneRef.current.sphere.rotation.y;
       footpointGroup.rotation.x = sceneRef.current.sphere.rotation.x;
       footpointGroup.visible = showFootpoints;
+    }
+
+    // Reset pan when a new CR is loaded
+    if (sceneRef.current) {
+      sceneRef.current.camera.position.x = 0;
+      sceneRef.current.camera.position.y = 0;
     }
 
     currentCoronalDataRef.current = coronalData;
