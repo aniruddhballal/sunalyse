@@ -337,22 +337,29 @@ function DesktopPanel(p: DisplaySettingsPanelProps) {
 
 // ─── Mobile bottom sheet ──────────────────────────────────────────────────────
 
-const SNAPS = [216, 376];
+const SHEET_MIN = 160;   // minimum sheet height when open
+const SHEET_MAX = 520;   // maximum sheet height when open
+const SHEET_DEFAULT = 216; // height when opening from pill
 type TabId = SectionId;
 
 function MobileSheet(p: DisplaySettingsPanelProps) {
-  const [height,   setHeight]   = useState(SNAPS[0]);
-  const [snapIdx,  setSnapIdx]  = useState(0);
+  const [height,    setHeight]    = useState(SHEET_DEFAULT);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>('view');
   const dragStartY = useRef<number | null>(null);
-  const dragStartH = useRef(SNAPS[0]);
+  const dragStartH = useRef(SHEET_DEFAULT);
   const isAnimating = useRef(false);
 
-  const snapTo = useCallback((idx: number) => {
-    const clamped = Math.max(0, Math.min(1, idx));
-    setSnapIdx(clamped);
+  const openSheet = useCallback((h?: number) => {
     isAnimating.current = true;
-    setHeight(SNAPS[clamped]);
+    setIsSheetOpen(true);
+    setHeight(Math.max(SHEET_MIN, Math.min(SHEET_MAX, h ?? SHEET_DEFAULT)));
+    setTimeout(() => { isAnimating.current = false; }, 320);
+  }, []);
+
+  const closeSheet = useCallback(() => {
+    isAnimating.current = true;
+    setIsSheetOpen(false);
     setTimeout(() => { isAnimating.current = false; }, 320);
   }, []);
 
@@ -360,18 +367,22 @@ function MobileSheet(p: DisplaySettingsPanelProps) {
   const onMove  = (y: number) => {
     if (dragStartY.current === null) return;
     const delta = dragStartY.current - y;
-    setHeight(Math.max(SNAPS[0] - 10, Math.min(SNAPS[2] + 20, dragStartH.current + delta)));
+    const newH = dragStartH.current + delta;
+    if (newH < SHEET_MIN - 60) return; // close if dragged well below min
+    setHeight(Math.max(SHEET_MIN, Math.min(SHEET_MAX, newH)));
   };
   const onEnd = (y: number) => {
     if (dragStartY.current === null) return;
     const delta = dragStartY.current - y;
-    const cur = dragStartH.current + delta;
-    let target = snapIdx;
-    if (delta >  40) target = Math.min(1, snapIdx + 1);
-    else if (delta < -40) target = Math.max(0, snapIdx - 1);
-    else target = SNAPS.reduce((best, s, i) => Math.abs(s - cur) < Math.abs(SNAPS[best] - cur) ? i : best, 0);
+    const newH = dragStartH.current + delta;
     dragStartY.current = null;
-    snapTo(target);
+    if (newH < SHEET_MIN - 40) {
+      // dragged far enough down — collapse to pill
+      closeSheet();
+    } else {
+      // stay at whatever height user left it, clamped to min/max
+      setHeight(Math.max(SHEET_MIN, Math.min(SHEET_MAX, newH)));
+    }
   };
 
   const TABS: { id: TabId; label: string; dot: string }[] = [
@@ -381,68 +392,98 @@ function MobileSheet(p: DisplaySettingsPanelProps) {
     { id: 'details', label: 'Details',     dot: 'bg-gray-500'   },
   ];
 
-  return (
-    <div
-      className="absolute bottom-0 left-0 right-0 z-30 pointer-events-auto bg-black/90 border-t border-gray-800 backdrop-blur flex flex-col"
-      style={{
-        height,
-        borderRadius: '14px 14px 0 0',
-        transition: isAnimating.current ? 'none' : 'height 0.28s cubic-bezier(0.32,0.72,0,1)',
-        touchAction: 'none',
-        paddingBottom: 'env(safe-area-inset-bottom)',
-      }}
-      onTouchStart={(e) => e.stopPropagation()}
-      onTouchMove={(e) => e.stopPropagation()}
-    >
-      {/* Drag handle zone */}
-      <div
-        className="flex-shrink-0 cursor-grab active:cursor-grabbing select-none"
-        style={{ touchAction: 'none', overscrollBehavior: 'none' }}
-        onMouseDown={(e) => onStart(e.clientY)}
-        onMouseMove={(e) => { if (dragStartY.current !== null) onMove(e.clientY); }}
-        onMouseUp={(e)   => onEnd(e.clientY)}
-        onMouseLeave={(e) => { if (dragStartY.current !== null) onEnd(e.clientY); }}
-        onTouchStart={(e) => onStart(e.touches[0].clientY)}
-        onTouchMove={(e)  => onMove(e.touches[0].clientY)}
-        onTouchEnd={(e)   => onEnd(e.changedTouches[0].clientY)}
-      >
-        {/* Pill */}
-        <div className="flex justify-center pt-2.5 pb-1">
-          <div className="w-8 h-0.5 rounded-full bg-gray-600" />
-        </div>
-        {/* Snap position dots */}
-        <div className="flex justify-center gap-1 mb-1.5">
-          {[0,1].map(i => (
-            <div key={i} className={`w-1 h-1 rounded-full transition-colors ${i === snapIdx ? 'bg-gray-400' : 'bg-gray-700'}`} />
-          ))}
-        </div>
-        {/* Tab chips */}
-        <div className="flex gap-1.5 px-3 pb-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-          {TABS.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => { setActiveTab(tab.id); }}
-              className={`flex items-center gap-1.5 flex-shrink-0 text-[10px] px-2.5 py-1 rounded-full border transition-colors ${
-                activeTab === tab.id
-                  ? 'bg-white/10 border-gray-600 text-white'
-                  : 'border-gray-700 text-gray-500 bg-transparent'
-              }`}
-            >
-              <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${tab.dot}`} />
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      </div>
+  const isCollapsed = !isSheetOpen;
 
-      {/* Tab content */}
-      <div className="flex-1 overflow-y-auto px-4 pb-4 pt-1" style={{ scrollbarWidth: 'thin' }}>
-          {activeTab === 'view'    && <ViewSection    {...p} />}
-          {activeTab === 'photo'   && <PhotoSection   {...p} />}
-          {activeTab === 'corona'  && <CoronaSection  {...p} />}
-          {activeTab === 'details' && <DetailsSection {...p} />}
+  return (
+    <>
+      {/* Collapsed pill — visible only when sheet is at snap 0 */}
+      {isCollapsed && (
+        <div
+          className="absolute bottom-0 left-0 right-0 z-30 pointer-events-auto flex justify-center"
+          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)' }}
+          onTouchStart={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => openSheet()}
+            className="flex items-center gap-2 px-4 py-2 rounded-full bg-black/85 border border-gray-700 backdrop-blur text-white/70 hover:text-white transition-colors text-xs font-light"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M2 8L6 4L10 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Display settings
+          </button>
         </div>
-    </div>
+      )}
+
+      {/* Bottom sheet — hidden when collapsed */}
+      {!isCollapsed && (
+        <div
+          className="absolute bottom-0 left-0 right-0 z-30 pointer-events-auto bg-black/90 border-t border-gray-800 backdrop-blur flex flex-col"
+          style={{
+            height,
+            borderRadius: '14px 14px 0 0',
+            transition: isAnimating.current ? 'none' : 'height 0.28s cubic-bezier(0.32,0.72,0,1)',
+            touchAction: 'none',
+            paddingBottom: 'env(safe-area-inset-bottom)',
+          }}
+          onTouchStart={(e) => e.stopPropagation()}
+          onTouchMove={(e) => e.stopPropagation()}
+        >
+          {/* Drag handle zone */}
+          <div
+            className="flex-shrink-0 cursor-grab active:cursor-grabbing select-none"
+            style={{ touchAction: 'none', overscrollBehavior: 'none' }}
+            onMouseDown={(e) => onStart(e.clientY)}
+            onMouseMove={(e) => { if (dragStartY.current !== null) onMove(e.clientY); }}
+            onMouseUp={(e)   => onEnd(e.clientY)}
+            onMouseLeave={(e) => { if (dragStartY.current !== null) onEnd(e.clientY); }}
+            onTouchStart={(e) => onStart(e.touches[0].clientY)}
+            onTouchMove={(e)  => onMove(e.touches[0].clientY)}
+            onTouchEnd={(e)   => onEnd(e.changedTouches[0].clientY)}
+          >
+            {/* Handle pill + collapse button row */}
+            <div className="flex items-center justify-between px-3 pt-2.5 pb-1">
+              <div className="w-6" /> {/* spacer */}
+              <div className="w-8 h-0.5 rounded-full bg-gray-600" />
+              <button
+                onClick={() => closeSheet()}
+                className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-gray-300 transition-colors w-6 justify-end"
+                aria-label="Collapse"
+              >
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                  <path d="M2 3L5 7L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+            </div>
+            {/* Tab chips */}
+            <div className="flex gap-1.5 px-3 pb-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+              {TABS.map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => { setActiveTab(tab.id); }}
+                  className={`flex items-center gap-1.5 flex-shrink-0 text-[10px] px-2.5 py-1 rounded-full border transition-colors ${
+                    activeTab === tab.id
+                      ? 'bg-white/10 border-gray-600 text-white'
+                      : 'border-gray-700 text-gray-500 bg-transparent'
+                  }`}
+                >
+                  <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${tab.dot}`} />
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Tab content */}
+          <div className="flex-1 overflow-y-auto px-4 pb-4 pt-1" style={{ scrollbarWidth: 'thin' }}>
+            {activeTab === 'view'    && <ViewSection    {...p} />}
+            {activeTab === 'photo'   && <PhotoSection   {...p} />}
+            {activeTab === 'corona'  && <CoronaSection  {...p} />}
+            {activeTab === 'details' && <DetailsSection {...p} />}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
