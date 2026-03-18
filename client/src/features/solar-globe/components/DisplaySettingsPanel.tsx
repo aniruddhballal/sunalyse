@@ -267,7 +267,7 @@ function DetailsSection(p: DisplaySettingsPanelProps) {
       {p.coronalData && <Row label="Field lines" value={`${totalCount} total · ${openCount} open`} />}
       {p.coronalData && <Row label="lmax" value="85" />}
       {p.fitsData && <Row label="Map size" value={`${p.fitsData.width} × ${p.fitsData.height} px`} />}
-      {p.fitsData && <Row label="Br range" value={`${p.fitsData.min.toFixed(0)} to ${p.fitsData.max.toFixed(0)} G`} />}
+      {p.fitsData && <Row label="Br range" value={`${p.fitsData.min.toFixed(0)} – ${p.fitsData.max.toFixed(0)} G`} />}
       <Row label="Data source" value={p.dataSource || 'HMI Synoptic'} />
     </div>
   );
@@ -337,7 +337,8 @@ function DesktopPanel(p: DisplaySettingsPanelProps) {
 
 // ─── Mobile bottom sheet ──────────────────────────────────────────────────────
 
-const SNAPS = [72, 200, 360];
+// Snap heights — collapsed is 88px to keep the handle above the OS gesture zone
+const SNAPS = [88, 216, 376];
 type TabId = SectionId;
 
 function MobileSheet(p: DisplaySettingsPanelProps) {
@@ -391,6 +392,7 @@ function MobileSheet(p: DisplaySettingsPanelProps) {
         borderRadius: '14px 14px 0 0',
         transition: isAnimating.current ? 'none' : 'height 0.28s cubic-bezier(0.32,0.72,0,1)',
         touchAction: 'none',
+        paddingBottom: 'env(safe-area-inset-bottom)',
       }}
       onTouchStart={(e) => e.stopPropagation()}
       onTouchMove={(e) => e.stopPropagation()}
@@ -398,6 +400,7 @@ function MobileSheet(p: DisplaySettingsPanelProps) {
       {/* Drag handle zone */}
       <div
         className="flex-shrink-0 cursor-grab active:cursor-grabbing select-none"
+        style={{ touchAction: 'none', overscrollBehavior: 'none' }}
         onMouseDown={(e) => onStart(e.clientY)}
         onMouseMove={(e) => { if (dragStartY.current !== null) onMove(e.clientY); }}
         onMouseUp={(e)   => onEnd(e.clientY)}
