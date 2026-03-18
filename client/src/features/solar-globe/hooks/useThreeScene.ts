@@ -355,8 +355,8 @@ export const useThreeScene = (
       if (isPanning) {
         // Pan speed scales with zoom distance so it feels consistent
         const panSpeed = cameraDistance * 0.001;
-        panX += deltaX * panSpeed;
-        panY -= deltaY * panSpeed;
+        panX -= deltaX * panSpeed;
+        panY += deltaY * panSpeed;
         applyPan();
         previousMousePosition = { x: e.clientX, y: e.clientY };
         return;
@@ -425,20 +425,32 @@ export const useThreeScene = (
       
       if (e.touches.length === 2) {
         e.preventDefault();
-        // Pinch zoom
         const currentDistance = getTouchDistance(e.touches);
-        const delta = lastTouchDistance - currentDistance;
-        handleZoom(delta * 0.1);
-        lastTouchDistance = currentDistance;
-        // Two-finger pan — midpoint translation
         const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
         const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-        const dx = midX - previousMousePosition.x;
-        const dy = midY - previousMousePosition.y;
-        const panSpeed = cameraDistance * 0.001;
-        panX += dx * panSpeed;
-        panY -= dy * panSpeed;
-        applyPan();
+
+        const distanceDelta = Math.abs(currentDistance - lastTouchDistance);
+        const midDeltaX = Math.abs(midX - previousMousePosition.x);
+        const midDeltaY = Math.abs(midY - previousMousePosition.y);
+        const midDelta = Math.sqrt(midDeltaX * midDeltaX + midDeltaY * midDeltaY);
+
+        // Only zoom if pinch distance changed significantly more than midpoint moved
+        if (distanceDelta > midDelta * 0.8) {
+          const delta = lastTouchDistance - currentDistance;
+          handleZoom(delta * 0.1);
+        }
+
+        // Only pan if midpoint moved significantly more than pinch distance changed
+        if (midDelta > distanceDelta * 0.8) {
+          const dx = midX - previousMousePosition.x;
+          const dy = midY - previousMousePosition.y;
+          const panSpeed = cameraDistance * 0.001;
+          panX -= dx * panSpeed; // corrected direction
+          panY += dy * panSpeed; // corrected direction
+          applyPan();
+        }
+
+        lastTouchDistance = currentDistance;
         previousMousePosition = { x: midX, y: midY };
       } else if (isDragging && e.touches.length === 1) {
         // Rotation
