@@ -337,8 +337,7 @@ function DesktopPanel(p: DisplaySettingsPanelProps) {
 
 // ─── Mobile bottom sheet ──────────────────────────────────────────────────────
 
-// Snap heights — collapsed is 88px to keep the handle above the OS gesture zone
-const SNAPS = [88, 216, 376];
+const SNAPS = [216, 376];
 type TabId = SectionId;
 
 function MobileSheet(p: DisplaySettingsPanelProps) {
@@ -350,7 +349,7 @@ function MobileSheet(p: DisplaySettingsPanelProps) {
   const isAnimating = useRef(false);
 
   const snapTo = useCallback((idx: number) => {
-    const clamped = Math.max(0, Math.min(2, idx));
+    const clamped = Math.max(0, Math.min(1, idx));
     setSnapIdx(clamped);
     isAnimating.current = true;
     setHeight(SNAPS[clamped]);
@@ -368,14 +367,14 @@ function MobileSheet(p: DisplaySettingsPanelProps) {
     const delta = dragStartY.current - y;
     const cur = dragStartH.current + delta;
     let target = snapIdx;
-    if (delta >  40) target = Math.min(2, snapIdx + 1);
+    if (delta >  40) target = Math.min(1, snapIdx + 1);
     else if (delta < -40) target = Math.max(0, snapIdx - 1);
     else target = SNAPS.reduce((best, s, i) => Math.abs(s - cur) < Math.abs(SNAPS[best] - cur) ? i : best, 0);
     dragStartY.current = null;
     snapTo(target);
   };
 
-  const isOpen = snapIdx > 0;
+  const isOpen = true; // both snap positions show content
 
   const TABS: { id: TabId; label: string; dot: string }[] = [
     { id: 'view',    label: 'View',        dot: 'bg-blue-500'   },
@@ -415,7 +414,7 @@ function MobileSheet(p: DisplaySettingsPanelProps) {
         </div>
         {/* Snap position dots */}
         <div className="flex justify-center gap-1 mb-1.5">
-          {[0,1,2].map(i => (
+          {[0,1].map(i => (
             <div key={i} className={`w-1 h-1 rounded-full transition-colors ${i === snapIdx ? 'bg-gray-400' : 'bg-gray-700'}`} />
           ))}
         </div>
@@ -424,9 +423,9 @@ function MobileSheet(p: DisplaySettingsPanelProps) {
           {TABS.map(tab => (
             <button
               key={tab.id}
-              onClick={() => { setActiveTab(tab.id); if (snapIdx === 0) snapTo(1); }}
+              onClick={() => { setActiveTab(tab.id); }}
               className={`flex items-center gap-1.5 flex-shrink-0 text-[10px] px-2.5 py-1 rounded-full border transition-colors ${
-                activeTab === tab.id && isOpen
+                activeTab === tab.id
                   ? 'bg-white/10 border-gray-600 text-white'
                   : 'border-gray-700 text-gray-500 bg-transparent'
               }`}
@@ -439,14 +438,12 @@ function MobileSheet(p: DisplaySettingsPanelProps) {
       </div>
 
       {/* Tab content */}
-      {isOpen && (
-        <div className="flex-1 overflow-y-auto px-4 pb-4 pt-1" style={{ scrollbarWidth: 'thin' }}>
+      <div className="flex-1 overflow-y-auto px-4 pb-4 pt-1" style={{ scrollbarWidth: 'thin' }}>
           {activeTab === 'view'    && <ViewSection    {...p} />}
           {activeTab === 'photo'   && <PhotoSection   {...p} />}
           {activeTab === 'corona'  && <CoronaSection  {...p} />}
           {activeTab === 'details' && <DetailsSection {...p} />}
         </div>
-      )}
     </div>
   );
 }

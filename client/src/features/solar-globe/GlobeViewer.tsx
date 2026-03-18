@@ -86,7 +86,11 @@ export default function GlobeViewer({
       <div 
         ref={containerRef}
         className={`absolute inset-0 transition-opacity duration-300 ${show2DMap ? 'hidden' : 'block'}`}
-        style={{ touchAction: 'pan-y pan-x pinch-zoom' }}
+        style={{
+          touchAction: 'pan-y pan-x pinch-zoom',
+          // On mobile shift the viewport up so the globe centre sits above the bottom sheet
+          marginBottom: typeof window !== 'undefined' && window.innerWidth < 768 ? '10vh' : '0',
+        }}
       />
       
       {show2DMap && (
