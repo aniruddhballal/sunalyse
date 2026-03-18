@@ -331,7 +331,7 @@ export const useThreeScene = (
       const rx = sphere.rotation.x;
       const ry = sphere.rotation.y;
       for (const obj of [fieldLineGroup, oldFieldLineGroup, sourceSurface,
-                         polarityGroup, poleAxesGroup, graticuleGroup, footpointGroup]) {
+                         polarityGroup, poleAxesGroup, graticuleGroup, footpointGroup, stars]) {
         obj.rotation.x = rx;
         obj.rotation.y = ry;
       }
@@ -519,9 +519,6 @@ export const useThreeScene = (
         applyRotation();
       }
       
-      // Keep stars centred on camera so they feel infinitely distant
-      stars.position.copy(camera.position);
-
       renderer.render(scene, camera);
       
       if (sceneRef.current) {
