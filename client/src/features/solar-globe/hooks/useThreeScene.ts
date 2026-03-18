@@ -677,7 +677,7 @@ export const useThreeScene = (
       
       currentFitsDataRef.current = fitsData;
     }
-  }, [fitsData, show2DMap, useFixedScale, fixedMin, fixedMax, visibleLight]);
+  }, [fitsData, show2DMap, useFixedScale, fixedMin, fixedMax]);
 
   // Handle scale changes
   useEffect(() => {
@@ -716,7 +716,7 @@ export const useThreeScene = (
         sceneRef.current.sphere.material = material;
       }
     }
-  }, [useFixedScale, fixedMin, fixedMax, visibleLight]);
+  }, [useFixedScale, fixedMin, fixedMax]);
 
   // Handle coronal field lines updates with transitions
   useEffect(() => {
