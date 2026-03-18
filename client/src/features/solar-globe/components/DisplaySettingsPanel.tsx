@@ -399,7 +399,7 @@ function MobileSheet(p: DisplaySettingsPanelProps) {
       {/* Collapsed pill — visible only when sheet is at snap 0 */}
       {isCollapsed && (
         <div
-          className="absolute bottom-0 left-0 right-0 z-30 pointer-events-auto flex justify-center"
+          className="fixed bottom-0 left-0 right-0 z-30 pointer-events-auto flex justify-center"
           style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)' }}
           onTouchStart={(e) => e.stopPropagation()}
         >
@@ -418,7 +418,7 @@ function MobileSheet(p: DisplaySettingsPanelProps) {
       {/* Bottom sheet — hidden when collapsed */}
       {!isCollapsed && (
         <div
-          className="absolute bottom-0 left-0 right-0 z-30 pointer-events-auto bg-black/90 border-t border-gray-800 backdrop-blur flex flex-col"
+          className="fixed bottom-0 left-0 right-0 z-30 pointer-events-auto bg-black/90 border-t border-gray-800 backdrop-blur flex flex-col"
           style={{
             height,
             borderRadius: '14px 14px 0 0',
