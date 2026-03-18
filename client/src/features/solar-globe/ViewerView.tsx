@@ -119,13 +119,13 @@ export default function ViewerView({
         dataSource={dataSource}
       />
 
-      {/* Navigation + reset — bottom left */}
+      {/* Desktop navigation + reset — bottom left, hidden on mobile */}
       <div
-        className="absolute left-4 right-4 bottom-20 z-20 pointer-events-auto md:left-6 md:right-auto md:bottom-8"
+        className="absolute left-6 bottom-8 z-20 pointer-events-auto hidden md:block"
         onTouchStart={(e) => e.stopPropagation()}
         onTouchMove={(e) => e.stopPropagation()}
       >
-        <div className="flex flex-col gap-2 max-w-xs">
+        <div className="flex flex-col gap-2">
           {showNavigation && (
             <div className="grid grid-cols-2 gap-2">
               <button
@@ -152,6 +152,43 @@ export default function ViewerView({
           </button>
         </div>
       </div>
+
+      {/* Mobile navigation — edge arrows, hidden on desktop */}
+      {showNavigation && (
+        <>
+          <button
+            onClick={() => handleNavigate('prev')}
+            disabled={isNavigating || currentCarringtonNumber! <= 2096}
+            onTouchStart={(e) => e.stopPropagation()}
+            className="absolute left-0 top-1/2 -translate-y-1/2 z-20 pointer-events-auto md:hidden
+              flex items-center justify-center w-8 h-16
+              text-white/50 hover:text-white/90 transition-colors
+              disabled:opacity-20 disabled:cursor-not-allowed"
+            style={{ paddingLeft: 4 }}
+            aria-label="Previous CR"
+          >
+            <svg width="12" height="24" viewBox="0 0 12 24" fill="none">
+              <path d="M10 2L2 12L10 22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+
+          <button
+            onClick={() => handleNavigate('next')}
+            disabled={isNavigating || currentCarringtonNumber! >= 2285}
+            onTouchStart={(e) => e.stopPropagation()}
+            className="absolute right-0 top-1/2 -translate-y-1/2 z-20 pointer-events-auto md:hidden
+              flex items-center justify-center w-8 h-16
+              text-white/50 hover:text-white/90 transition-colors
+              disabled:opacity-20 disabled:cursor-not-allowed"
+            style={{ paddingRight: 4 }}
+            aria-label="Next CR"
+          >
+            <svg width="12" height="24" viewBox="0 0 12 24" fill="none">
+              <path d="M2 2L10 12L2 22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+        </>
+      )}
 
       {/* Solar cycle timeline — desktop only, centered bottom */}
       {currentCarringtonNumber !== undefined && (
