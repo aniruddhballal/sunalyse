@@ -321,6 +321,7 @@ export const useThreeScene = (
     
     // Touch pinch zoom
     let lastTouchDistance = 0;
+    let lastTouchCount = 0;
     
     const getTouchDistance = (touches: TouchList): number => {
       const dx = touches[0].clientX - touches[1].clientX;
@@ -400,10 +401,13 @@ export const useThreeScene = (
         return;
       }
       
+      lastTouchCount = e.touches.length;
       if (e.touches.length === 2) {
+        // Second finger joined — reset all tracking state cleanly
+        // to avoid a huge delta spike from stale single-finger position
         touchStartedOnCanvas = true;
+        isDragging = false; // stop any single-finger rotation in progress
         lastTouchDistance = getTouchDistance(e.touches);
-        // Record midpoint for two-finger pan
         previousMousePosition = {
           x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
           y: (e.touches[0].clientY + e.touches[1].clientY) / 2,
@@ -422,6 +426,16 @@ export const useThreeScene = (
     
     const onTouchMove = (e: TouchEvent) => {
       if (!touchStartedOnCanvas) return;
+      // Skip this frame if finger count just changed — delta would be garbage
+      if (e.touches.length !== lastTouchCount) {
+        lastTouchCount = e.touches.length;
+        lastTouchDistance = getTouchDistance(e.touches);
+        previousMousePosition = {
+          x: (e.touches[0].clientX + (e.touches[1]?.clientX ?? e.touches[0].clientX)) / 2,
+          y: (e.touches[0].clientY + (e.touches[1]?.clientY ?? e.touches[0].clientY)) / 2,
+        };
+        return;
+      }
       
       if (e.touches.length === 2) {
         e.preventDefault();
