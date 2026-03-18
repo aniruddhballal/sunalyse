@@ -41,6 +41,37 @@ const easeInOutCubic = (t: number): number => {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 };
 
+const createStarField = (): THREE.Points => {
+  const count = 2000;
+  const positions = new Float32Array(count * 3);
+  const sizes = new Float32Array(count);
+
+  for (let i = 0; i < count; i++) {
+    // Random point on a large sphere (radius 400–500) using spherical coords
+    const theta = Math.acos(2 * Math.random() - 1);
+    const phi   = Math.random() * Math.PI * 2;
+    const r     = 400 + Math.random() * 100;
+    positions[i * 3]     = r * Math.sin(theta) * Math.cos(phi);
+    positions[i * 3 + 1] = r * Math.cos(theta);
+    positions[i * 3 + 2] = r * Math.sin(theta) * Math.sin(phi);
+    sizes[i] = 0.4 + Math.random() * 1.2; // vary star sizes
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute('size',     new THREE.BufferAttribute(sizes, 1));
+
+  const material = new THREE.PointsMaterial({
+    color: 0xffffff,
+    size: 0.6,
+    sizeAttenuation: true,
+    transparent: true,
+    opacity: 0.75,
+  });
+
+  return new THREE.Points(geometry, material);
+};
+
 const createGraticule = (): THREE.Group => {
   const group = new THREE.Group();
   const R = 1.002; // Slightly above surface to avoid z-fighting
@@ -255,6 +286,10 @@ export const useThreeScene = (
     const pointLight = new THREE.PointLight(0xffffff, 0.5);
     pointLight.position.set(5, 5, 5);
     scene.add(pointLight);
+
+    // Star field background — follows camera position so it acts as a skybox
+    const stars = createStarField();
+    scene.add(stars);
     
     // ── Camera state ─────────────────────────────────────────────────────────
     let cameraDistance = 3;
@@ -484,6 +519,9 @@ export const useThreeScene = (
         applyRotation();
       }
       
+      // Keep stars centred on camera so they feel infinitely distant
+      stars.position.copy(camera.position);
+
       renderer.render(scene, camera);
       
       if (sceneRef.current) {
