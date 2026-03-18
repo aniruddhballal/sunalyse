@@ -374,8 +374,6 @@ function MobileSheet(p: DisplaySettingsPanelProps) {
     snapTo(target);
   };
 
-  const isOpen = true; // both snap positions show content
-
   const TABS: { id: TabId; label: string; dot: string }[] = [
     { id: 'view',    label: 'View',        dot: 'bg-blue-500'   },
     { id: 'photo',   label: 'Photosphere', dot: 'bg-orange-500' },
