@@ -191,12 +191,17 @@ export const useThreeScene = (
   const currentFitsDataRef = useRef<FITSData | null>(null);
   const transitionRef = useRef<TransitionRef | null>(null);
   const fieldLineTransitionRef = useRef<FieldLineTransitionRef | null>(null);
-  const isRotatingRef = useRef(isRotating);
+  const isRotatingRef   = useRef(isRotating);
+  const visibleLightRef = useRef(visibleLight);
   const currentCoronalDataRef = useRef<CoronalData | null>(null);
 
   useEffect(() => {
     isRotatingRef.current = isRotating;
   }, [isRotating]);
+
+  useEffect(() => {
+    visibleLightRef.current = visibleLight;
+  }, [visibleLight]);
 
   const initThreeJS = (fitsData: FITSData) => {
     if (!containerRef.current) return;
@@ -491,7 +496,7 @@ export const useThreeScene = (
           const newDataTexture = sphere.material.uniforms.newDataMap.value;
           const oldDataTexture = sphere.material.uniforms.oldDataMap.value;
           
-          const newMaterial = createShaderMaterial(newDataTexture, visibleLight);
+          const newMaterial = createShaderMaterial(newDataTexture, visibleLightRef.current);
           
           sphere.material.dispose();
           sphere.material = newMaterial;
@@ -672,7 +677,7 @@ export const useThreeScene = (
       
       currentFitsDataRef.current = fitsData;
     }
-  }, [fitsData, show2DMap, useFixedScale, fixedMin, fixedMax]);
+  }, [fitsData, show2DMap, useFixedScale, fixedMin, fixedMax, visibleLight]);
 
   // Handle scale changes
   useEffect(() => {
@@ -694,7 +699,7 @@ export const useThreeScene = (
       );
       
       if (oldDataTexture) {
-        const transitionMaterial = createTransitionShaderMaterial(oldDataTexture, newDataTexture);
+        const transitionMaterial = createTransitionShaderMaterial(oldDataTexture, newDataTexture, visibleLight);
         
         if (currentMaterial instanceof THREE.Material) {
           currentMaterial.dispose();
@@ -707,11 +712,11 @@ export const useThreeScene = (
           duration: 800
         };
       } else {
-        const material = createShaderMaterial(newDataTexture);
+        const material = createShaderMaterial(newDataTexture, visibleLight);
         sceneRef.current.sphere.material = material;
       }
     }
-  }, [useFixedScale, fixedMin, fixedMax]);
+  }, [useFixedScale, fixedMin, fixedMax, visibleLight]);
 
   // Handle coronal field lines updates with transitions
   useEffect(() => {
