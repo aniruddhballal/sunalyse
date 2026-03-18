@@ -4,21 +4,15 @@ import DisplaySettingsPanel from './components/DisplaySettingsPanel';
 import type { FITSData } from './fits/types';
 import type { CoronalData } from './hooks/useCoronalFieldLines';
 
-// Define CR gaps where no satellite data exists
-const CR_GAPS = [
-  { start: 2119, end: 2127 }, // No satellite data
-];
+const CR_GAPS = [{ start: 2119, end: 2127 }];
 
 const getNextValidCR = (current: number, direction: 'next' | 'prev'): number => {
   let next = direction === 'next' ? current + 1 : current - 1;
-  
-  // Check if next falls in any gap and skip it
   for (const gap of CR_GAPS) {
     if (next >= gap.start && next <= gap.end) {
       next = direction === 'next' ? gap.end + 1 : gap.start - 1;
     }
   }
-  
   return next;
 };
 
@@ -43,43 +37,30 @@ interface ViewerViewProps {
   setShowSourceSurface: (show: boolean) => void;
 }
 
-export default function ViewerView({ 
-  fitsData, 
-  dataSource, 
-  onReset, 
-  currentCarringtonNumber,
-  onNavigate,
-  isNavigating = false,
-  coronalData,
-  isLoadingCoronal,
-  coronalError,
-  showCoronalLines,
-  showOpenLines,
-  showClosedLines,
-  showSourceSurface,
-  onToggleCoronalLines,
-  onFetchCoronalData,
-  setShowOpenLines,
-  setShowClosedLines,
-  setShowSourceSurface
+export default function ViewerView({
+  fitsData, dataSource, onReset, currentCarringtonNumber,
+  onNavigate, isNavigating = false,
+  coronalData, isLoadingCoronal, coronalError,
+  showCoronalLines, showOpenLines, showClosedLines, showSourceSurface,
+  onToggleCoronalLines, onFetchCoronalData,
+  setShowOpenLines, setShowClosedLines, setShowSourceSurface,
 }: ViewerViewProps) {
-  const [show2DMap, setShow2DMap] = useState(false);
-  const [isRotating, setIsRotating] = useState(false);
-  const [useFixedScale, setUseFixedScale] = useState(false);
-  const [fixedMin, setFixedMin] = useState('-500');
-  const [fixedMax, setFixedMax] = useState('500');
+  const [show2DMap,           setShow2DMap]           = useState(false);
+  const [isRotating,          setIsRotating]          = useState(false);
   const [showGeographicPoles, setShowGeographicPoles] = useState(true);
-  const [fieldLineMaxStrength, setFieldLineMaxStrength] = useState(500);
-  const [showPolarity, setShowPolarity] = useState(false);
-  const [apexMinR, setApexMinR] = useState(1.0);
-  const [apexMaxR, setApexMaxR] = useState(2.5);
-  const [showFootpoints, setShowFootpoints] = useState(false);
-  const [showGraticule, setShowGraticule] = useState(false);
+  const [showGraticule,       setShowGraticule]       = useState(false);
+  const [useFixedScale,       setUseFixedScale]       = useState(false);
+  const [fixedMin,            setFixedMin]            = useState('-500');
+  const [fixedMax,            setFixedMax]            = useState('500');
+  const [fieldLineMaxStrength,setFieldLineMaxStrength]= useState(500);
+  const [showPolarity,        setShowPolarity]        = useState(false);
+  const [apexMinR,            setApexMinR]            = useState(1.0);
+  const [apexMaxR,            setApexMaxR]            = useState(2.5);
+  const [showFootpoints,      setShowFootpoints]      = useState(false);
 
   const handleNavigate = (direction: 'next' | 'prev') => {
     if (onNavigate && currentCarringtonNumber !== undefined) {
-      const nextCR = getNextValidCR(currentCarringtonNumber, direction);
-      onNavigate(direction, nextCR);
+      onNavigate(direction, getNextValidCR(currentCarringtonNumber, direction));
     }
   };
 
@@ -108,14 +89,14 @@ export default function ViewerView({
         showFootpoints={showFootpoints}
       />
 
-      {/* Unified Display Settings Panel */}
       <DisplaySettingsPanel
-        useFixedScale={useFixedScale}
-        setUseFixedScale={setUseFixedScale}
-        fixedMin={fixedMin}
-        setFixedMin={setFixedMin}
-        fixedMax={fixedMax}
-        setFixedMax={setFixedMax}
+        show2DMap={show2DMap}                setShow2DMap={setShow2DMap}
+        isRotating={isRotating}              setIsRotating={setIsRotating}
+        showGeographicPoles={showGeographicPoles} setShowGeographicPoles={setShowGeographicPoles}
+        showGraticule={showGraticule}        setShowGraticule={setShowGraticule}
+        useFixedScale={useFixedScale}        setUseFixedScale={setUseFixedScale}
+        fixedMin={fixedMin}                  setFixedMin={setFixedMin}
+        fixedMax={fixedMax}                  setFixedMax={setFixedMax}
         fitsData={fitsData}
         coronalData={coronalData}
         isLoadingCoronal={isLoadingCoronal}
@@ -130,105 +111,62 @@ export default function ViewerView({
         setShowClosedLines={setShowClosedLines}
         setShowSourceSurface={setShowSourceSurface}
         currentCarringtonNumber={currentCarringtonNumber}
+        fieldLineMaxStrength={fieldLineMaxStrength} setFieldLineMaxStrength={setFieldLineMaxStrength}
+        showPolarity={showPolarity}          setShowPolarity={setShowPolarity}
+        apexMinR={apexMinR}                  setApexMinR={setApexMinR}
+        apexMaxR={apexMaxR}                  setApexMaxR={setApexMaxR}
+        showFootpoints={showFootpoints}      setShowFootpoints={setShowFootpoints}
         dataSource={dataSource}
-        fieldLineMaxStrength={fieldLineMaxStrength}
-        setFieldLineMaxStrength={setFieldLineMaxStrength}
-        showPolarity={showPolarity}
-        setShowPolarity={setShowPolarity}
-        apexMinR={apexMinR}
-        setApexMinR={setApexMinR}
-        apexMaxR={apexMaxR}
-        setApexMaxR={setApexMaxR}
-        showFootpoints={showFootpoints}
-        setShowFootpoints={setShowFootpoints}
       />
 
-      <div 
-        className="absolute left-0 right-0 bottom-16 z-20 pointer-events-auto px-4 md:left-6 md:right-auto md:bottom-[10vh] md:px-0"
+      {/* Navigation + reset — bottom left */}
+      <div
+        className="absolute left-4 right-4 bottom-20 z-20 pointer-events-auto md:left-6 md:right-auto md:bottom-8"
         onTouchStart={(e) => e.stopPropagation()}
         onTouchMove={(e) => e.stopPropagation()}
       >
-        <div className="flex flex-col gap-2 max-w-md mx-auto md:max-w-none md:mx-0">
+        <div className="flex flex-col gap-2 max-w-xs">
           {showNavigation && (
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => handleNavigate('prev')}
-                disabled={isNavigating || currentCarringtonNumber <= 2096}
-                className="text-white text-xs font-light hover:text-gray-300 transition-colors bg-black/70 backdrop-blur px-3 py-2.5 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                disabled={isNavigating || currentCarringtonNumber! <= 2096}
+                className="text-white text-xs font-light bg-black/70 backdrop-blur px-3 py-2.5 rounded hover:bg-black/90 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
               >
-                {isNavigating ? '...' : '← Prev CR'}
+                {isNavigating ? '…' : '← Prev CR'}
               </button>
               <button
                 onClick={() => handleNavigate('next')}
-                disabled={isNavigating || currentCarringtonNumber >= 2285}
-                className="text-white text-xs font-light hover:text-gray-300 transition-colors bg-black/70 backdrop-blur px-3 py-2.5 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                disabled={isNavigating || currentCarringtonNumber! >= 2285}
+                className="text-white text-xs font-light bg-black/70 backdrop-blur px-3 py-2.5 rounded hover:bg-black/90 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
               >
-                {isNavigating ? '...' : 'Next CR →'}
+                {isNavigating ? '…' : 'Next CR →'}
               </button>
             </div>
           )}
-          
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => setShow2DMap(!show2DMap)}
-              className="text-white text-xs font-light hover:text-gray-300 transition-colors bg-black/70 backdrop-blur px-3 py-2.5 rounded"
-            >
-              {show2DMap ? '3D Globe' : '2D Map'}
-            </button>
-            <button
-              onClick={() => setIsRotating(!isRotating)}
-              className="text-white text-xs font-light hover:text-gray-300 transition-colors bg-black/70 backdrop-blur px-3 py-2.5 rounded"
-            >
-              {isRotating ? 'Pause' : 'Resume'}
-            </button>
-          </div>
-          
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => setShowGeographicPoles(!showGeographicPoles)}
-              className="text-white text-xs font-light hover:text-gray-300 transition-colors bg-black/70 backdrop-blur px-3 py-2.5 rounded"
-            >
-              {showGeographicPoles ? 'Hide Poles' : 'Show Poles'}
-            </button>
-            <button
-              onClick={() => setShowGraticule(!showGraticule)}
-              className="text-white text-xs font-light hover:text-gray-300 transition-colors bg-black/70 backdrop-blur px-3 py-2.5 rounded"
-            >
-              {showGraticule ? 'Hide Grid' : 'Show Grid'}
-            </button>
-          </div>
-          
           <button
             onClick={onReset}
-            className="text-white text-xs font-light hover:text-gray-300 transition-colors bg-black/70 backdrop-blur px-3 py-2.5 rounded"
+            className="text-white text-xs font-light bg-black/70 backdrop-blur px-3 py-2.5 rounded hover:bg-black/90 transition-colors"
           >
-            View Another
+            View another
           </button>
         </div>
       </div>
 
-      {/* Solar cycle timeline */}
+      {/* Solar cycle timeline — desktop only, centered bottom */}
       {currentCarringtonNumber !== undefined && (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 pointer-events-none" style={{width: '280px'}}>
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 pointer-events-none hidden md:block" style={{ width: 280 }}>
           <div className="text-gray-600 text-xs font-light text-center mb-1">
             {(() => {
               const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-              const msFrom2097 = (currentCarringtonNumber - 2097) * 27.3 * 24 * 3600 * 1000;
-              const d = new Date(Date.UTC(2010, 4, 19) + msFrom2097);
+              const ms = (currentCarringtonNumber - 2097) * 27.3 * 24 * 3600 * 1000;
+              const d  = new Date(Date.UTC(2010, 4, 19) + ms);
               return `CR ${currentCarringtonNumber} · ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()} · Solar Cycle 24`;
             })()}
           </div>
-          <div className="relative h-1.5 rounded-full overflow-hidden" style={{background: 'rgba(255,255,255,0.1)'}}>
-            {/* SC24 max ~CR 2150 (May 2014), dataset spans Apr 2010 – Jun 2024 */}
-            <div className="absolute top-0 h-full rounded-full" style={{
-              background: 'linear-gradient(to right, #1a1a2e, #e85d04, #1a1a2e)',
-              width: '100%',
-              opacity: 0.6
-            }}/>
-            {/* Current position indicator */}
-            <div className="absolute top-0 h-full w-0.5 bg-white" style={{
-              left: ((currentCarringtonNumber - 2096) / (2285 - 2096) * 100) + '%'
-            }}/>
+          <div className="relative h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
+            <div className="absolute inset-0 rounded-full" style={{ background: 'linear-gradient(to right, #1a1a2e, #e85d04, #1a1a2e)', opacity: 0.6 }} />
+            <div className="absolute top-0 h-full w-0.5 bg-white" style={{ left: ((currentCarringtonNumber - 2096) / (2285 - 2096) * 100) + '%' }} />
           </div>
           <div className="flex justify-between text-gray-600 text-xs font-light mt-0.5">
             <span>CR 2096 · Apr 2010</span>
@@ -237,20 +175,19 @@ export default function ViewerView({
         </div>
       )}
 
-      <div className="absolute bottom-6 right-6 text-gray-500 text-xs font-light z-20 pointer-events-none">
-        {showCoronalLines && coronalData && (
-          <div className="mt-2 space-y-1">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-0.5" style={{background: 'linear-gradient(to right, #006600, #80ff00)'}}></div>
-              <span>Open (weak → strong)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-0.5" style={{background: 'linear-gradient(to right, #800000, #ff9900)'}}></div>
-              <span>Closed (weak → strong)</span>
-            </div>
+      {/* Field line colour legend — desktop only, bottom right */}
+      {showCoronalLines && coronalData && (
+        <div className="absolute bottom-6 right-6 text-gray-500 text-xs font-light z-20 pointer-events-none hidden md:block">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-8 h-0.5" style={{ background: 'linear-gradient(to right, #006600, #80ff00)' }} />
+            <span>Open (weak → strong)</span>
           </div>
-        )}
-      </div>
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-0.5" style={{ background: 'linear-gradient(to right, #800000, #ff9900)' }} />
+            <span>Closed (weak → strong)</span>
+          </div>
+        </div>
+      )}
     </>
   );
 }
