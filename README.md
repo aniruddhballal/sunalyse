@@ -1,6 +1,6 @@
 # Sunalyse
 
-An interactive 3D solar magnetic field viewer built with React, Three.js, and PFSS (Potential Field Source Surface) extrapolation. Visualises the Sun's coronal magnetic field structure for all 181 Carrington Rotations from CR 2096 to CR 2285 (roughly 1996–2014), covering a full solar cycle.
+An interactive 3D solar magnetic field viewer built with React, Three.js, and PFSS (Potential Field Source Surface) extrapolation. Visualises the Sun's coronal magnetic field structure for all 181 Carrington Rotations from CR 2096 to CR 2285 (roughly 2010–2024), covering a full solar cycle.
 
 ---
 
