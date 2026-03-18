@@ -57,6 +57,7 @@ export default function ViewerView({
   const [apexMinR,            setApexMinR]            = useState(1.0);
   const [apexMaxR,            setApexMaxR]            = useState(2.5);
   const [showFootpoints,      setShowFootpoints]      = useState(false);
+  const [visibleLight,        setVisibleLight]        = useState(false);
 
   const handleNavigate = (direction: 'next' | 'prev') => {
     if (onNavigate && currentCarringtonNumber !== undefined) {
@@ -87,6 +88,7 @@ export default function ViewerView({
         apexMinR={apexMinR}
         apexMaxR={apexMaxR}
         showFootpoints={showFootpoints}
+        visibleLight={visibleLight}
       />
 
       <DisplaySettingsPanel
@@ -116,6 +118,7 @@ export default function ViewerView({
         apexMinR={apexMinR}                  setApexMinR={setApexMinR}
         apexMaxR={apexMaxR}                  setApexMaxR={setApexMaxR}
         showFootpoints={showFootpoints}      setShowFootpoints={setShowFootpoints}
+        visibleLight={visibleLight}         setVisibleLight={setVisibleLight}
         dataSource={dataSource}
       />
 

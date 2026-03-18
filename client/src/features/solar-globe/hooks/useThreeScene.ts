@@ -184,7 +184,8 @@ export const useThreeScene = (
   showGraticule: boolean = false,
   apexMinR: number = 1.0,
   apexMaxR: number = 2.5,
-  showFootpoints: boolean = false
+  showFootpoints: boolean = false,
+  visibleLight: boolean = false
 ) => {
   const sceneRef = useRef<ThreeSceneRef | null>(null);
   const currentFitsDataRef = useRef<FITSData | null>(null);
@@ -225,9 +226,44 @@ export const useThreeScene = (
     
     const geometry = new THREE.SphereGeometry(1, 256, 256);
     const dataTexture = createDataTexture(fitsData, useFixedScale, parseFloat(fixedMin), parseFloat(fixedMax));
-    const material = createShaderMaterial(dataTexture);
+    const material = createShaderMaterial(dataTexture, visibleLight);
     const sphere = new THREE.Mesh(geometry, material);
     scene.add(sphere);
+
+    // Coronal glow — larger sphere behind the Sun with radial fade shader
+    const glowGeometry = new THREE.SphereGeometry(1.22, 64, 64);
+    const glowMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        glowColor: { value: new THREE.Color(0xff6020) },
+      },
+      vertexShader: [
+        'varying vec3 vNormal;',
+        'varying vec3 vViewDir;',
+        'void main() {',
+        '  vNormal = normalize(normalMatrix * normal);',
+        '  vec4 worldPos = modelViewMatrix * vec4(position, 1.0);',
+        '  vViewDir = normalize(-worldPos.xyz);',
+        '  gl_Position = projectionMatrix * worldPos;',
+        '}'
+      ].join('\n'),
+      fragmentShader: [
+        'uniform vec3 glowColor;',
+        'varying vec3 vNormal;',
+        'varying vec3 vViewDir;',
+        'void main() {',
+        // Fresnel: bright at limb, transparent at centre
+        '  float fresnel = 1.0 - abs(dot(vNormal, vViewDir));',
+        '  fresnel = pow(fresnel, 2.8);',
+        '  gl_FragColor = vec4(glowColor, fresnel * 0.55);',
+        '}'
+      ].join('\n'),
+      transparent: true,
+      side: THREE.BackSide,  // render inside-out so it shows behind the sphere
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    const glowSphere = new THREE.Mesh(glowGeometry, glowMaterial);
+    scene.add(glowSphere);
     
     // Create field line group for coronal field lines
     const fieldLineGroup = new THREE.Group();
@@ -455,7 +491,7 @@ export const useThreeScene = (
           const newDataTexture = sphere.material.uniforms.newDataMap.value;
           const oldDataTexture = sphere.material.uniforms.oldDataMap.value;
           
-          const newMaterial = createShaderMaterial(newDataTexture);
+          const newMaterial = createShaderMaterial(newDataTexture, visibleLight);
           
           sphere.material.dispose();
           sphere.material = newMaterial;
@@ -617,7 +653,7 @@ export const useThreeScene = (
       );
       
       if (oldDataTexture) {
-        const transitionMaterial = createTransitionShaderMaterial(oldDataTexture, newDataTexture);
+        const transitionMaterial = createTransitionShaderMaterial(oldDataTexture, newDataTexture, visibleLight);
         
         if (currentMaterial instanceof THREE.Material) {
           currentMaterial.dispose();
@@ -630,7 +666,7 @@ export const useThreeScene = (
           duration: 800
         };
       } else {
-        const material = createShaderMaterial(newDataTexture);
+        const material = createShaderMaterial(newDataTexture, visibleLight);
         sceneRef.current.sphere.material = material;
       }
       
@@ -915,6 +951,26 @@ export const useThreeScene = (
     currentCoronalDataRef.current = coronalData;
 
   }, [coronalData]);
+
+  // Handle visible light toggle — rebuild sphere material with current texture
+  useEffect(() => {
+    if (!sceneRef.current || !fitsData || show2DMap) return;
+    const sphere = sceneRef.current.sphere;
+    const currentMaterial = sphere.material;
+    // Extract the current data texture so we don't need to rebuild it
+    let dataTexture: THREE.DataTexture | null = null;
+    if (currentMaterial instanceof THREE.ShaderMaterial) {
+      dataTexture = currentMaterial.uniforms.dataMap?.value
+        || currentMaterial.uniforms.newDataMap?.value
+        || null;
+    }
+    if (!dataTexture) {
+      dataTexture = createDataTexture(fitsData, useFixedScale, parseFloat(fixedMin), parseFloat(fixedMax));
+    }
+    const newMaterial = createShaderMaterial(dataTexture, visibleLight);
+    if (currentMaterial instanceof THREE.Material) currentMaterial.dispose();
+    sphere.material = newMaterial;
+  }, [visibleLight]);
 
   // Handle field line colour scale changes — update vertex colours in place
   // without rebuilding geometry or triggering transitions

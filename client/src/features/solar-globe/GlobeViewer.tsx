@@ -23,6 +23,7 @@ interface GlobeViewerProps {
   apexMinR: number;
   apexMaxR: number;
   showFootpoints: boolean;
+  visibleLight: boolean;
 }
 
 export default function GlobeViewer({ 
@@ -43,7 +44,8 @@ export default function GlobeViewer({
   showGraticule,
   apexMinR,
   apexMaxR,
-  showFootpoints
+  showFootpoints,
+  visibleLight
 }: GlobeViewerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvas2DRef = useRef<HTMLCanvasElement | null>(null);
@@ -68,7 +70,8 @@ export default function GlobeViewer({
     showGraticule,
     apexMinR,
     apexMaxR,
-    showFootpoints
+    showFootpoints,
+    visibleLight
   );
   
   // Use 2D renderer hook for 2D canvas rendering

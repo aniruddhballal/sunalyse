@@ -33,6 +33,8 @@ export interface DisplaySettingsPanelProps {
   setShowGeographicPoles: (v: boolean) => void;
   showGraticule: boolean;
   setShowGraticule: (v: boolean) => void;
+  visibleLight: boolean;
+  setVisibleLight: (v: boolean) => void;
   // Corona
   coronalData: CoronalData | null;
   isLoadingCoronal: boolean;
@@ -132,9 +134,17 @@ function ViewSection(p: DisplaySettingsPanelProps) {
 function PhotoSection(p: DisplaySettingsPanelProps) {
   return (
     <div>
-      <p className="text-[10px] text-gray-500 mb-3 leading-snug">
-        Orange/red = field pointing outward · Green = inward · Grey = weak or no field
-      </p>
+      <ToggleRow
+        label="Visible light"
+        desc="Show the Sun as it appears to the eye — orange-yellow with dark sunspots at active regions"
+        on={p.visibleLight}
+        onClick={() => p.setVisibleLight(!p.visibleLight)}
+      />
+      {!p.visibleLight && (
+        <p className="text-[10px] text-gray-500 mb-3 leading-snug mt-2">
+          Orange/red = field pointing outward · Green = inward · Grey = weak or no field
+        </p>
+      )}
       <ToggleRow
         label="Fixed colour range"
         desc="Lock min/max Gauss so colours stay consistent as you navigate rotations"
