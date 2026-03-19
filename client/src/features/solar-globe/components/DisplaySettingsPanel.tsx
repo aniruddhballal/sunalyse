@@ -277,7 +277,7 @@ function DetailsSection(p: DisplaySettingsPanelProps) {
       {p.coronalData && <Row label="Field lines" value={`${totalCount} total · ${openCount} open`} />}
       {p.coronalData && <Row label="lmax" value="85" />}
       {p.fitsData && <Row label="Map size" value={`${p.fitsData.width} × ${p.fitsData.height} px`} />}
-      {p.fitsData && <Row label="Br range" value={`${p.fitsData.min.toFixed(0)} – ${p.fitsData.max.toFixed(0)} G`} />}
+      {p.fitsData && <Row label="Br range" value={`${p.fitsData.min.toFixed(0)} to ${p.fitsData.max.toFixed(0)} G`} />}
       <Row label="Data source" value={p.dataSource || 'HMI Synoptic'} />
     </div>
   );
