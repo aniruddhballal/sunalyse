@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import GlobeViewer from './GlobeViewer';
 import DisplaySettingsPanel from './components/DisplaySettingsPanel';
 import type { FITSData } from './fits/types';
@@ -58,12 +58,30 @@ export default function ViewerView({
   const [apexMaxR,            setApexMaxR]            = useState(2.5);
   const [showFootpoints,      setShowFootpoints]      = useState(false);
   const [visibleLight,        setVisibleLight]        = useState(false);
+  const [isPlaying,          setIsPlaying]          = useState(false);
 
   const handleNavigate = (direction: 'next' | 'prev') => {
     if (onNavigate && currentCarringtonNumber !== undefined) {
       onNavigate(direction, getNextValidCR(currentCarringtonNumber, direction));
     }
   };
+
+  // Play/pause animation — advances one CR every 5s, waits for load to finish
+  useEffect(() => {
+    if (!isPlaying) return;
+    // Stop at the end of the dataset
+    if (currentCarringtonNumber !== undefined && currentCarringtonNumber >= 2285) {
+      setIsPlaying(false);
+      return;
+    }
+    const interval = setInterval(() => {
+      // Only advance if previous CR has finished loading
+      if (!isNavigating && currentCarringtonNumber !== undefined && currentCarringtonNumber < 2285) {
+        handleNavigate('next');
+      }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [isPlaying, isNavigating, currentCarringtonNumber]);
 
   const showNavigation = currentCarringtonNumber !== undefined && onNavigate;
 
@@ -147,6 +165,18 @@ export default function ViewerView({
               </button>
             </div>
           )}
+          {showNavigation && (
+            <button
+              onClick={() => setIsPlaying(!isPlaying)}
+              className={`w-full text-xs font-light backdrop-blur px-3 py-2.5 rounded transition-colors ${
+                isPlaying
+                  ? 'bg-orange-600/80 hover:bg-orange-700/80 text-white'
+                  : 'bg-black/70 hover:bg-black/90 text-white'
+              }`}
+            >
+              {isPlaying ? '⏸ Pause animation' : '▶ Play solar cycle'}
+            </button>
+          )}
           <button
             onClick={onReset}
             className="text-white text-xs font-light bg-black/70 backdrop-blur px-3 py-2.5 rounded hover:bg-black/90 transition-colors"
@@ -191,6 +221,22 @@ export default function ViewerView({
             </svg>
           </button>
         </>
+      )}
+
+      {/* Mobile play/pause — centred, above timeline, hidden on desktop */}
+      {showNavigation && (
+        <button
+          onClick={() => setIsPlaying(!isPlaying)}
+          onTouchStart={(e) => e.stopPropagation()}
+          className={`absolute top-4 left-1/2 -translate-x-1/2 z-20 pointer-events-auto md:hidden
+            text-[10px] font-light px-3 py-1.5 rounded-full backdrop-blur border transition-colors ${
+            isPlaying
+              ? 'bg-orange-600/80 border-orange-500/50 text-white'
+              : 'bg-black/70 border-gray-700 text-white/70'
+          }`}
+        >
+          {isPlaying ? '⏸ Pause' : '▶ Play'}
+        </button>
       )}
 
       {/* Solar cycle timeline — desktop only, centered bottom */}
