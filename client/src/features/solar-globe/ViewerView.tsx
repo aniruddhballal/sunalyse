@@ -35,6 +35,7 @@ interface ViewerViewProps {
   setShowOpenLines: (show: boolean) => void;
   setShowClosedLines: (show: boolean) => void;
   setShowSourceSurface: (show: boolean) => void;
+  onPlayingChange?: (playing: boolean) => void;
 }
 
 export default function ViewerView({
@@ -44,6 +45,7 @@ export default function ViewerView({
   showCoronalLines, showOpenLines, showClosedLines, showSourceSurface,
   onToggleCoronalLines, onFetchCoronalData,
   setShowOpenLines, setShowClosedLines, setShowSourceSurface,
+  onPlayingChange,
 }: ViewerViewProps) {
   const [show2DMap,           setShow2DMap]           = useState(false);
   const [isRotating,          setIsRotating]          = useState(false);
@@ -59,6 +61,11 @@ export default function ViewerView({
   const [showFootpoints,      setShowFootpoints]      = useState(false);
   const [visibleLight,        setVisibleLight]        = useState(false);
   const [isPlaying,          setIsPlaying]          = useState(false);
+
+  // Notify parent when play state changes so it can use replaceState vs pushState
+  useEffect(() => {
+    onPlayingChange?.(isPlaying);
+  }, [isPlaying]);
 
   const handleNavigate = (direction: 'next' | 'prev') => {
     if (onNavigate && currentCarringtonNumber !== undefined) {

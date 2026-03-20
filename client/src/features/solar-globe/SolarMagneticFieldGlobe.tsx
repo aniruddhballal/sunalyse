@@ -23,6 +23,7 @@ export default function SolarMagneticFieldGlobe() {
   const pendingCoronalFetchRef    = useRef<number | null>(null);
   const prefetchRef               = useRef<PrefetchEntry | null>(null);
   const prefetchingCRRef          = useRef<number | null>(null); // prevent duplicate prefetch
+  const isAnimatingRef            = useRef(false); // replaceState vs pushState
 
   const {
     isFetching,
@@ -126,6 +127,37 @@ export default function SolarMagneticFieldGlobe() {
       shouldAutoFetchCoronalRef.current = false;
     }
   }, [currentCRNumber, isNavigating, isLoadingCoronal]);
+
+  // ── Sync CR number to URL ────────────────────────────────────────────────
+  useEffect(() => {
+    if (currentCRNumber === undefined) return;
+    // During animation use replaceState so history doesn't bloat
+    // During manual navigation use pushState so back button works
+    if (isAnimatingRef.current) {
+      window.history.replaceState(null, '', `/cr/${currentCRNumber}`);
+    } else {
+      window.history.pushState(null, '', `/cr/${currentCRNumber}`);
+    }
+  }, [currentCRNumber]);
+
+  // ── Read CR from URL on initial mount ────────────────────────────────────
+  useEffect(() => {
+    const match = window.location.pathname.match(/\/cr\/(\d+)/);
+    if (!match) return;
+    const crFromUrl = parseInt(match[1]);
+    if (crFromUrl >= 2096 && crFromUrl <= 2285) {
+      // Auto-load the CR from the URL
+      setCarringtonNumber(String(crFromUrl));
+      fetchCarringtonData(
+        crFromUrl,
+        false,
+        setDataSource,
+        setFitsData,
+        setIsFetching,
+        setIsProcessing
+      );
+    }
+  }, []); // runs once on mount
 
   const handleCarringtonFetch = async () => {
     const rotationNum = parseInt(carringtonNumber);
@@ -238,6 +270,7 @@ export default function SolarMagneticFieldGlobe() {
           setShowOpenLines={setShowOpenLines}
           setShowClosedLines={setShowClosedLines}
           setShowSourceSurface={setShowSourceSurface}
+          onPlayingChange={(playing) => { isAnimatingRef.current = playing; }}
         />
       )}
     </div>
