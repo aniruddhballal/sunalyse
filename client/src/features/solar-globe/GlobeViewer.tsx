@@ -1,8 +1,8 @@
 import { useRef } from 'react';
 import type { FITSData } from './fits/types';
-import type { CoronalData } from './hooks/useCoronalFieldLines';
-import { useThreeScene } from './hooks/useThreeScene';
-import { use2DRenderer } from './hooks/use2DRenderer';
+import type { CoronalData } from './hooks/data/useCoronalFieldLines';
+import { useThreeScene } from './hooks/scene/useThreeScene';
+import { use2DRenderer } from './hooks/scene/use2DRenderer';
 
 interface GlobeViewerProps {
   fitsData: FITSData;
@@ -26,9 +26,9 @@ interface GlobeViewerProps {
   visibleLight: boolean;
 }
 
-export default function GlobeViewer({ 
-  fitsData, 
-  show2DMap, 
+export default function GlobeViewer({
+  fitsData,
+  show2DMap,
   isRotating,
   coronalData,
   showCoronalLines,
@@ -49,7 +49,7 @@ export default function GlobeViewer({
 }: GlobeViewerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvas2DRef = useRef<HTMLCanvasElement | null>(null);
-  
+
   // Use Three.js hook for 3D rendering (now with coronal field lines and geographic poles)
   useThreeScene(
     containerRef,
@@ -73,7 +73,7 @@ export default function GlobeViewer({
     showFootpoints,
     visibleLight
   );
-  
+
   // Use 2D renderer hook for 2D canvas rendering
   use2DRenderer(
     canvas2DRef,
@@ -83,10 +83,10 @@ export default function GlobeViewer({
     String(fixedMin),
     String(fixedMax)
   );
-  
+
   return (
     <>
-      <div 
+      <div
         ref={containerRef}
         className={`absolute inset-0 transition-opacity duration-300 ${show2DMap ? 'hidden' : 'block'}`}
         style={{
@@ -95,12 +95,12 @@ export default function GlobeViewer({
           marginBottom: typeof window !== 'undefined' && window.innerWidth < 768 ? '10vh' : '0',
         }}
       />
-      
+
       {show2DMap && (
         <div className="absolute inset-0 flex items-center justify-center bg-black p-8">
-          <canvas 
+          <canvas
             ref={canvas2DRef}
-            style={{ 
+            style={{
               maxWidth: '100%',
               maxHeight: '100%',
               width: 'auto',

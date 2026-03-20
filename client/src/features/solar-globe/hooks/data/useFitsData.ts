@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { FITSData } from '../fits/types';
+import type { FITSData } from '../../fits/types';
 
 export const useFitsData = () => {
   const [isFetching, setIsFetching] = useState(false);

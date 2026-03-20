@@ -1,8 +1,8 @@
 import { useRef, useEffect } from 'react';
 import * as THREE from 'three';
-import type { FITSData } from '../fits/types';
-import type { CoronalData } from './useCoronalFieldLines';
-import { createDataTexture, createShaderMaterial, createTransitionShaderMaterial } from '../utils/textureCreation';
+import type { FITSData } from '../../fits/types';
+import type { CoronalData } from '../data/useCoronalFieldLines';
+import { createDataTexture, createShaderMaterial, createTransitionShaderMaterial } from '../../utils/textureCreation';
 
 interface ThreeSceneRef {
   scene: THREE.Scene;

@@ -1,13 +1,13 @@
 import { useRef, useEffect } from 'react';
 import InputView from './InputView';
 import ViewerView from './ViewerView';
-import { useFitsData } from './hooks/useFitsData';
-import { useCarringtonData } from './hooks/useCarringtonData';
-import { useCoronalFieldLines } from './hooks/useCoronalFieldLines';
+import { useFitsData } from './hooks/data/useFitsData';
+import { useCarringtonData } from './hooks/data/useCarringtonData';
+import { useCoronalFieldLines } from './hooks/data/useCoronalFieldLines';
 import { parseFITS } from './fits/fitsUtils';
 import { api } from '../../services/api';
 import type { FITSData } from './fits/types';
-import type { CoronalData } from './hooks/useCoronalFieldLines';
+import type { CoronalData } from './hooks/data/useCoronalFieldLines';
 
 // ── Prefetch cache — one slot, always holds the next CR ────────────────────
 interface PrefetchEntry {
@@ -20,10 +20,10 @@ interface PrefetchEntry {
 
 export default function SolarMagneticFieldGlobe() {
   const shouldAutoFetchCoronalRef = useRef(false);
-  const pendingCoronalFetchRef    = useRef<number | null>(null);
-  const prefetchRef               = useRef<PrefetchEntry | null>(null);
-  const prefetchingCRRef          = useRef<number | null>(null); // prevent duplicate prefetch
-  const isAnimatingRef            = useRef(false); // replaceState vs pushState
+  const pendingCoronalFetchRef = useRef<number | null>(null);
+  const prefetchRef = useRef<PrefetchEntry | null>(null);
+  const prefetchingCRRef = useRef<number | null>(null); // prevent duplicate prefetch
+  const isAnimatingRef = useRef(false); // replaceState vs pushState
 
   const {
     isFetching,

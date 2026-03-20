@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import GlobeViewer from './GlobeViewer';
 import DisplaySettingsPanel from './components/DisplaySettingsPanel';
 import type { FITSData } from './fits/types';
-import type { CoronalData } from './hooks/useCoronalFieldLines';
+import type { CoronalData } from './hooks/data/useCoronalFieldLines';
 
 const CR_GAPS = [{ start: 2119, end: 2127 }];
 
@@ -47,20 +47,20 @@ export default function ViewerView({
   setShowOpenLines, setShowClosedLines, setShowSourceSurface,
   onPlayingChange,
 }: ViewerViewProps) {
-  const [show2DMap,           setShow2DMap]           = useState(false);
-  const [isRotating,          setIsRotating]          = useState(false);
+  const [show2DMap, setShow2DMap] = useState(false);
+  const [isRotating, setIsRotating] = useState(false);
   const [showGeographicPoles, setShowGeographicPoles] = useState(true);
-  const [showGraticule,       setShowGraticule]       = useState(false);
-  const [useFixedScale,       setUseFixedScale]       = useState(false);
-  const [fixedMin,            setFixedMin]            = useState('-500');
-  const [fixedMax,            setFixedMax]            = useState('500');
-  const [fieldLineMaxStrength,setFieldLineMaxStrength]= useState(500);
-  const [showPolarity,        setShowPolarity]        = useState(false);
-  const [apexMinR,            setApexMinR]            = useState(1.0);
-  const [apexMaxR,            setApexMaxR]            = useState(2.5);
-  const [showFootpoints,      setShowFootpoints]      = useState(false);
-  const [visibleLight,        setVisibleLight]        = useState(false);
-  const [isPlaying,          setIsPlaying]          = useState(false);
+  const [showGraticule, setShowGraticule] = useState(false);
+  const [useFixedScale, setUseFixedScale] = useState(false);
+  const [fixedMin, setFixedMin] = useState('-500');
+  const [fixedMax, setFixedMax] = useState('500');
+  const [fieldLineMaxStrength, setFieldLineMaxStrength] = useState(500);
+  const [showPolarity, setShowPolarity] = useState(false);
+  const [apexMinR, setApexMinR] = useState(1.0);
+  const [apexMaxR, setApexMaxR] = useState(2.5);
+  const [showFootpoints, setShowFootpoints] = useState(false);
+  const [visibleLight, setVisibleLight] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   // Notify parent when play state changes so it can use replaceState vs pushState
   useEffect(() => {
@@ -117,13 +117,13 @@ export default function ViewerView({
       />
 
       <DisplaySettingsPanel
-        show2DMap={show2DMap}                setShow2DMap={setShow2DMap}
-        isRotating={isRotating}              setIsRotating={setIsRotating}
+        show2DMap={show2DMap} setShow2DMap={setShow2DMap}
+        isRotating={isRotating} setIsRotating={setIsRotating}
         showGeographicPoles={showGeographicPoles} setShowGeographicPoles={setShowGeographicPoles}
-        showGraticule={showGraticule}        setShowGraticule={setShowGraticule}
-        useFixedScale={useFixedScale}        setUseFixedScale={setUseFixedScale}
-        fixedMin={fixedMin}                  setFixedMin={setFixedMin}
-        fixedMax={fixedMax}                  setFixedMax={setFixedMax}
+        showGraticule={showGraticule} setShowGraticule={setShowGraticule}
+        useFixedScale={useFixedScale} setUseFixedScale={setUseFixedScale}
+        fixedMin={fixedMin} setFixedMin={setFixedMin}
+        fixedMax={fixedMax} setFixedMax={setFixedMax}
         fitsData={fitsData}
         coronalData={coronalData}
         isLoadingCoronal={isLoadingCoronal}
@@ -139,11 +139,11 @@ export default function ViewerView({
         setShowSourceSurface={setShowSourceSurface}
         currentCarringtonNumber={currentCarringtonNumber}
         fieldLineMaxStrength={fieldLineMaxStrength} setFieldLineMaxStrength={setFieldLineMaxStrength}
-        showPolarity={showPolarity}          setShowPolarity={setShowPolarity}
-        apexMinR={apexMinR}                  setApexMinR={setApexMinR}
-        apexMaxR={apexMaxR}                  setApexMaxR={setApexMaxR}
-        showFootpoints={showFootpoints}      setShowFootpoints={setShowFootpoints}
-        visibleLight={visibleLight}         setVisibleLight={setVisibleLight}
+        showPolarity={showPolarity} setShowPolarity={setShowPolarity}
+        apexMinR={apexMinR} setApexMinR={setApexMinR}
+        apexMaxR={apexMaxR} setApexMaxR={setApexMaxR}
+        showFootpoints={showFootpoints} setShowFootpoints={setShowFootpoints}
+        visibleLight={visibleLight} setVisibleLight={setVisibleLight}
         dataSource={dataSource}
       />
 
@@ -175,11 +175,10 @@ export default function ViewerView({
           {showNavigation && (
             <button
               onClick={() => setIsPlaying(!isPlaying)}
-              className={`w-full text-xs font-light backdrop-blur px-3 py-2.5 rounded transition-colors ${
-                isPlaying
+              className={`w-full text-xs font-light backdrop-blur px-3 py-2.5 rounded transition-colors ${isPlaying
                   ? 'bg-orange-600/80 hover:bg-orange-700/80 text-white'
                   : 'bg-black/70 hover:bg-black/90 text-white'
-              }`}
+                }`}
             >
               {isPlaying ? '⏸ Pause animation' : '▶ Play solar cycle'}
             </button>
@@ -208,7 +207,7 @@ export default function ViewerView({
             aria-label="Previous CR"
           >
             <svg width="12" height="24" viewBox="0 0 12 24" fill="none">
-              <path d="M10 2L2 12L10 22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M10 2L2 12L10 22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
 
@@ -224,7 +223,7 @@ export default function ViewerView({
             aria-label="Next CR"
           >
             <svg width="12" height="24" viewBox="0 0 12 24" fill="none">
-              <path d="M2 2L10 12L2 22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M2 2L10 12L2 22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
         </>
@@ -236,11 +235,10 @@ export default function ViewerView({
           onClick={() => setIsPlaying(!isPlaying)}
           onTouchStart={(e) => e.stopPropagation()}
           className={`absolute top-4 left-1/2 -translate-x-1/2 z-20 pointer-events-auto md:hidden
-            text-[10px] font-light px-3 py-1.5 rounded-full backdrop-blur border transition-colors ${
-            isPlaying
+            text-[10px] font-light px-3 py-1.5 rounded-full backdrop-blur border transition-colors ${isPlaying
               ? 'bg-orange-600/80 border-orange-500/50 text-white'
               : 'bg-black/70 border-gray-700 text-white/70'
-          }`}
+            }`}
         >
           {isPlaying ? '⏸ Pause' : '▶ Play'}
         </button>
@@ -251,9 +249,9 @@ export default function ViewerView({
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 pointer-events-none hidden md:block" style={{ width: 280 }}>
           <div className="text-gray-600 text-xs font-light text-center mb-1">
             {(() => {
-              const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+              const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
               const ms = (currentCarringtonNumber - 2097) * 27.3 * 24 * 3600 * 1000;
-              const d  = new Date(Date.UTC(2010, 4, 19) + ms);
+              const d = new Date(Date.UTC(2010, 4, 19) + ms);
               return `CR ${currentCarringtonNumber} · ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()} · Solar Cycle 24`;
             })()}
           </div>

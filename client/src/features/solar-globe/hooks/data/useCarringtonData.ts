@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { parseFITS } from '../fits/fitsUtils';
-import type { FITSData } from '../fits/types';
-import { api } from '../../../services/api';
+import { parseFITS } from '../../fits/fitsUtils';
+import type { FITSData } from '../../fits/types';
+import { api } from '../../../../services/api';
 
 export const useCarringtonData = () => {
   const [carringtonNumber, setCarringtonNumber] = useState('');
@@ -21,26 +21,26 @@ export const useCarringtonData = () => {
       setFetchError('Carrington rotation number must be between 2096 and 2285');
       return;
     }
-    
+
     setFetchError('');
-    
+
     if (isNavigation) {
       setIsNavigating(true);
     } else {
       setIsFetching(true);
       setFitsData(null);
     }
-    
+
     setDataSource(`CR${rotationNum}.fits`);
-    
+
     try {
       if (!isNavigation) {
         const blob = await api.fetchCarringtonFits(rotationNum);
         const file = new File([blob], `CR${rotationNum}.fits`, { type: 'application/fits' });
-        
+
         setIsFetching(false);
         setIsProcessing(true);
-        
+
         const parsed = await parseFITS(file);
         setFitsData(parsed);
         setCurrentCRNumber(rotationNum);
@@ -49,13 +49,13 @@ export const useCarringtonData = () => {
         // For navigation, fetch and process in background
         const blob = await api.fetchCarringtonFits(rotationNum);
         const file = new File([blob], `CR${rotationNum}.fits`, { type: 'application/fits' });
-        
+
         const parsed = await parseFITS(file);
         setFitsData(parsed);
         setCurrentCRNumber(rotationNum);
         setIsNavigating(false);
       }
-      
+
     } catch (error) {
       setIsFetching(false);
       setIsNavigating(false);
