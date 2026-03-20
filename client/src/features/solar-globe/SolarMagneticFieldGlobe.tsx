@@ -41,6 +41,7 @@ export default function SolarMagneticFieldGlobe() {
     carringtonNumber,
     setCarringtonNumber,
     currentCRNumber,
+    setCurrentCRNumber,
     fetchError,
     isNavigating,
     fetchCarringtonData,
@@ -199,12 +200,8 @@ export default function SolarMagneticFieldGlobe() {
       // ── Fast path: use prefetched data directly ──────────────────────────
       setDataSource(`CR${newCRNumber}.fits`);
       setFitsData(prefetch.fitsData);
+      setCurrentCRNumber(newCRNumber); // was missing — caused animation to stall at first CR
       if (coronalData && prefetch.coronalData) {
-        // Directly set coronal data via fetchCoronalData wrapper won't work
-        // since we already have the data — use fetchCoronalData which sets state
-        // Actually we need to set the data ourselves; fetchCoronalData makes a network call.
-        // We'll trigger a fetch but the browser cache should serve it instantly
-        // since we already fetched it in the prefetch. Net result: near-instant.
         fetchCoronalData(newCRNumber);
       }
     } else {

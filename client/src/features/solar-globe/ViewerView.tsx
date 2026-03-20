@@ -73,21 +73,23 @@ export default function ViewerView({
     }
   };
 
-  // Play/pause animation — advances one CR every 5s, waits for load to finish
+  // Play/pause animation — advances as soon as each CR finishes loading,
+  // with a short dwell so the eye can register the change.
   useEffect(() => {
     if (!isPlaying) return;
-    // Stop at the end of the dataset
     if (currentCarringtonNumber !== undefined && currentCarringtonNumber >= 2285) {
       setIsPlaying(false);
       return;
     }
-    const interval = setInterval(() => {
-      // Only advance if previous CR has finished loading
-      if (!isNavigating && currentCarringtonNumber !== undefined && currentCarringtonNumber < 2285) {
+    if (isNavigating) return;
+
+    const timeout = setTimeout(() => {
+      if (currentCarringtonNumber !== undefined && currentCarringtonNumber < 2285) {
         handleNavigate('next');
       }
-    }, 5000);
-    return () => clearInterval(interval);
+    }, 350);
+
+    return () => clearTimeout(timeout);
   }, [isPlaying, isNavigating, currentCarringtonNumber]);
 
   const showNavigation = currentCarringtonNumber !== undefined && onNavigate;
