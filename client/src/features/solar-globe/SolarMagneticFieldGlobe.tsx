@@ -27,6 +27,8 @@ export default function SolarMagneticFieldGlobe() {
   const prefetchMapRef = useRef<Map<number, PrefetchEntry>>(new Map());
   const prefetchingSetRef = useRef<Set<number>>(new Set()); // prevent duplicate fetches
   const isAnimatingRef = useRef(false); // replaceState vs pushState
+  // Holds fitsData that is waiting for coronal to finish before being committed
+  const pendingSyncRef = useRef<{ crNumber: number; fitsData: FITSData } | null>(null);
 
   const {
     isFetching,
@@ -125,6 +127,19 @@ export default function SolarMagneticFieldGlobe() {
     }
   }, [currentCRNumber, isNavigating, isLoadingCoronal]);
 
+  // ── Sync commit — release held fitsData once coronal finishes loading ──────
+  // When coronal is active, we hold the new fitsData in pendingSyncRef and only
+  // commit it to state once coronalData also updates, so both swap together.
+  useEffect(() => {
+    if (!pendingSyncRef.current || isLoadingCoronal) return;
+    // Coronal has settled — now safe to commit the held fitsData
+    const { crNumber, fitsData: pendingFits } = pendingSyncRef.current;
+    pendingSyncRef.current = null;
+    setDataSource(`CR${crNumber}.fits`);
+    setFitsData(pendingFits);
+    setCurrentCRNumber(crNumber);
+  }, [isLoadingCoronal, coronalData]);
+
   // Auto-fetch coronal data when CR changes if coronal lines were visible
   useEffect(() => {
     if (currentCRNumber && shouldAutoFetchCoronalRef.current && !isNavigating && !isLoadingCoronal) {
@@ -198,29 +213,49 @@ export default function SolarMagneticFieldGlobe() {
 
     if (prefetchHit && prefetch) {
       // ── Fast path: data already in memory ───────────────────────────────
-      setDataSource(`CR${newCRNumber}.fits`);
-      setFitsData(prefetch.fitsData);
-      setCurrentCRNumber(newCRNumber);
       if (coronalData && prefetch.coronalData) {
+        // Both ready — hold fitsData, kick off coronal fetch (browser cache
+        // serves it instantly), sync effect commits fitsData once coronal lands
+        pendingSyncRef.current = { crNumber: newCRNumber, fitsData: prefetch.fitsData! };
         fetchCoronalData(newCRNumber);
+      } else {
+        // No coronal active — commit immediately
+        setDataSource(`CR${newCRNumber}.fits`);
+        setFitsData(prefetch.fitsData);
+        setCurrentCRNumber(newCRNumber);
       }
-      // Remove consumed entry; the prefetch effect will queue the next one
       prefetchMapRef.current.delete(newCRNumber);
       prefetchingSetRef.current.delete(newCRNumber);
     } else {
       // ── Normal path: fetch live ──────────────────────────────────────────
       if (coronalData !== null) {
-        fetchCoronalData(newCRNumber);
+        // Hold fitsData commit until coronal finishes — fetchCarringtonData
+        // sets fitsData via setFitsData, so we intercept by passing a wrapper
+        // that stores into pendingSyncRef instead of committing directly.
+        // Simpler: just fetch both and let the sync effect handle the commit.
         shouldAutoFetchCoronalRef.current = false;
+        fetchCoronalData(newCRNumber);
+        await fetchCarringtonData(
+          newCRNumber,
+          true,
+          setDataSource,
+          (data) => {
+            // Buffer the fitsData — sync effect will commit it once coronal lands
+            if (data) pendingSyncRef.current = { crNumber: newCRNumber, fitsData: data };
+          },
+          setIsFetching,
+          setIsProcessing
+        );
+      } else {
+        await fetchCarringtonData(
+          newCRNumber,
+          true,
+          setDataSource,
+          setFitsData,
+          setIsFetching,
+          setIsProcessing
+        );
       }
-      await fetchCarringtonData(
-        newCRNumber,
-        true,
-        setDataSource,
-        setFitsData,
-        setIsFetching,
-        setIsProcessing
-      );
     }
   };
 
