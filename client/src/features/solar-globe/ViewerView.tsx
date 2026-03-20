@@ -177,12 +177,24 @@ export default function ViewerView({
           {showNavigation && (
             <button
               onClick={() => setIsPlaying(!isPlaying)}
-              className={`w-full text-xs font-light backdrop-blur px-3 py-2.5 rounded transition-colors ${isPlaying
-                  ? 'bg-orange-600/80 hover:bg-orange-700/80 text-white'
-                  : 'bg-black/70 hover:bg-black/90 text-white'
-                }`}
+              className="w-full text-xs font-light bg-black/70 backdrop-blur px-3 py-2.5 rounded hover:bg-black/90 transition-colors text-white flex items-center justify-center gap-2"
             >
-              {isPlaying ? '⏸ Pause animation' : '▶ Play solar cycle'}
+              {isPlaying ? (
+                <>
+                  <svg width="9" height="10" viewBox="0 0 9 10" fill="currentColor">
+                    <rect x="0" y="0" width="3" height="10" rx="1"/>
+                    <rect x="6" y="0" width="3" height="10" rx="1"/>
+                  </svg>
+                  Pause
+                </>
+              ) : (
+                <>
+                  <svg width="9" height="10" viewBox="0 0 9 10" fill="currentColor">
+                    <path d="M0 0L9 5L0 10Z"/>
+                  </svg>
+                  Play solar cycle
+                </>
+              )}
             </button>
           )}
           <button
@@ -236,13 +248,27 @@ export default function ViewerView({
         <button
           onClick={() => setIsPlaying(!isPlaying)}
           onTouchStart={(e) => e.stopPropagation()}
-          className={`absolute top-4 left-1/2 -translate-x-1/2 z-20 pointer-events-auto md:hidden
-            text-[10px] font-light px-3 py-1.5 rounded-full backdrop-blur border transition-colors ${isPlaying
-              ? 'bg-orange-600/80 border-orange-500/50 text-white'
-              : 'bg-black/70 border-gray-700 text-white/70'
-            }`}
+          className="absolute top-4 left-1/2 -translate-x-1/2 z-20 pointer-events-auto md:hidden
+            flex items-center gap-1.5 text-[10px] font-light px-3 py-1.5 rounded
+            bg-black/70 backdrop-blur border border-gray-800 text-white/70
+            hover:text-white hover:bg-black/90 transition-colors"
         >
-          {isPlaying ? '⏸ Pause' : '▶ Play'}
+          {isPlaying ? (
+            <>
+              <svg width="7" height="8" viewBox="0 0 7 8" fill="currentColor">
+                <rect x="0" y="0" width="2.5" height="8" rx="0.5"/>
+                <rect x="4.5" y="0" width="2.5" height="8" rx="0.5"/>
+              </svg>
+              Pause
+            </>
+          ) : (
+            <>
+              <svg width="7" height="8" viewBox="0 0 7 8" fill="currentColor">
+                <path d="M0 0L7 4L0 8Z"/>
+              </svg>
+              Play
+            </>
+          )}
         </button>
       )}
 
