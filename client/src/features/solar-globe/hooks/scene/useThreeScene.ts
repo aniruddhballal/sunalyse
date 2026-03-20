@@ -109,7 +109,7 @@ export const useThreeScene = (
       const transitionMaterial = createTransitionShaderMaterial(oldDataTexture, newDataTexture, visibleLight);
       if (currentMaterial instanceof THREE.Material) currentMaterial.dispose();
       sceneRef.current.sphere.material = transitionMaterial;
-      transitionRef.current = { isTransitioning: true, startTime: Date.now(), duration: 800 };
+      transitionRef.current = { isTransitioning: true, startTime: Date.now(), duration: 300 };
     } else {
       sceneRef.current.sphere.material = createShaderMaterial(newDataTexture, visibleLight);
     }

@@ -9,7 +9,9 @@ import { api } from '../../services/api';
 import type { FITSData } from './fits/types';
 import type { CoronalData } from './hooks/data/useCoronalFieldLines';
 
-// ── Prefetch cache — one slot, always holds the next CR ────────────────────
+// ── Prefetch cache — holds the next PREFETCH_AHEAD CRs ───────────────────
+const PREFETCH_AHEAD = 6;
+
 interface PrefetchEntry {
   crNumber: number;
   fitsData: FITSData | null;
@@ -21,8 +23,9 @@ interface PrefetchEntry {
 export default function SolarMagneticFieldGlobe() {
   const shouldAutoFetchCoronalRef = useRef(false);
   const pendingCoronalFetchRef = useRef<number | null>(null);
-  const prefetchRef = useRef<PrefetchEntry | null>(null);
-  const prefetchingCRRef = useRef<number | null>(null); // prevent duplicate prefetch
+  // Map keyed by CR number — holds up to PREFETCH_AHEAD entries
+  const prefetchMapRef = useRef<Map<number, PrefetchEntry>>(new Map());
+  const prefetchingSetRef = useRef<Set<number>>(new Set()); // prevent duplicate fetches
   const isAnimatingRef = useRef(false); // replaceState vs pushState
 
   const {
@@ -45,7 +48,7 @@ export default function SolarMagneticFieldGlobe() {
     fetchError,
     isNavigating,
     fetchCarringtonData,
-    reset: resetCarrington
+    reset: resetCarrington,
   } = useCarringtonData();
 
   const {
@@ -64,60 +67,65 @@ export default function SolarMagneticFieldGlobe() {
     toggleCoronalLines,
   } = useCoronalFieldLines();
 
-  // ── Prefetch next CR silently whenever current CR settles ────────────────
+  // ── Prefetch next PREFETCH_AHEAD CRs silently whenever current CR settles ─
   useEffect(() => {
     if (!currentCRNumber || isNavigating || isLoadingCoronal) return;
-    const nextCR = currentCRNumber + 1;
-    if (nextCR > 2285) return;
-    // Don't re-prefetch if we already have it or are already fetching it
-    if (prefetchRef.current?.crNumber === nextCR) return;
-    if (prefetchingCRRef.current === nextCR) return;
 
-    prefetchingCRRef.current = nextCR;
-    const entry: PrefetchEntry = {
-      crNumber: nextCR,
-      fitsData: null,
-      coronalData: null,
-      fitsReady: false,
-      coronalReady: !coronalData, // if coronal not loaded, mark ready immediately
-    };
-    prefetchRef.current = entry;
+    for (let offset = 1; offset <= PREFETCH_AHEAD; offset++) {
+      const targetCR = currentCRNumber + offset;
+      if (targetCR > 2285) break;
+      if (prefetchMapRef.current.has(targetCR)) continue;
+      if (prefetchingSetRef.current.has(targetCR)) continue;
 
-    // Prefetch FITS
-    (async () => {
-      try {
-        const blob = await api.fetchCarringtonFits(nextCR);
-        const file = new File([blob], `CR${nextCR}.fits`, { type: 'application/fits' });
-        const parsed = await parseFITS(file);
-        if (prefetchRef.current?.crNumber === nextCR) {
-          prefetchRef.current.fitsData = parsed;
-          prefetchRef.current.fitsReady = true;
-        }
-      } catch {
-        // Prefetch failed silently — handleNavigate will fall back to normal fetch
-        if (prefetchRef.current?.crNumber === nextCR) {
-          prefetchRef.current.fitsReady = true; // mark ready so we don't block
-          prefetchRef.current.fitsData = null;
-        }
-      }
-    })();
+      prefetchingSetRef.current.add(targetCR);
+      const entry: PrefetchEntry = {
+        crNumber: targetCR,
+        fitsData: null,
+        coronalData: null,
+        fitsReady: false,
+        coronalReady: !coronalData,
+      };
+      prefetchMapRef.current.set(targetCR, entry);
 
-    // Prefetch coronal (only if coronal is currently loaded)
-    if (coronalData) {
+      // Prefetch FITS
       (async () => {
+        const t0 = performance.now();
+        console.log(`[prefetch] CR ${targetCR} FITS started`);
         try {
-          const data = await api.fetchCoronalData(nextCR);
-          if (prefetchRef.current?.crNumber === nextCR) {
-            prefetchRef.current.coronalData = data;
-            prefetchRef.current.coronalReady = true;
-          }
+          const blob = await api.fetchCarringtonFits(targetCR);
+          const file = new File([blob], `CR${targetCR}.fits`, { type: 'application/fits' });
+          const parsed = await parseFITS(file);
+          const e = prefetchMapRef.current.get(targetCR);
+          if (e) { e.fitsData = parsed; e.fitsReady = true; }
+          console.log(`[prefetch] CR ${targetCR} FITS ready in ${(performance.now() - t0).toFixed(0)}ms`);
         } catch {
-          if (prefetchRef.current?.crNumber === nextCR) {
-            prefetchRef.current.coronalReady = true;
-            prefetchRef.current.coronalData = null;
-          }
+          const e = prefetchMapRef.current.get(targetCR);
+          if (e) { e.fitsReady = true; e.fitsData = null; }
+          console.warn(`[prefetch] CR ${targetCR} FITS failed after ${(performance.now() - t0).toFixed(0)}ms`);
         }
       })();
+
+      // Prefetch coronal (only if coronal is currently loaded)
+      if (coronalData) {
+        (async () => {
+          try {
+            const data = await api.fetchCoronalData(targetCR);
+            const e = prefetchMapRef.current.get(targetCR);
+            if (e) { e.coronalData = data; e.coronalReady = true; }
+          } catch {
+            const e = prefetchMapRef.current.get(targetCR);
+            if (e) { e.coronalReady = true; e.coronalData = null; }
+          }
+        })();
+      }
+    }
+
+    // Evict entries that are too far behind to be useful (> PREFETCH_AHEAD behind current)
+    for (const cr of prefetchMapRef.current.keys()) {
+      if (cr < currentCRNumber - 1) {
+        prefetchMapRef.current.delete(cr);
+        prefetchingSetRef.current.delete(cr);
+      }
     }
   }, [currentCRNumber, isNavigating, isLoadingCoronal]);
 
@@ -166,8 +174,8 @@ export default function SolarMagneticFieldGlobe() {
     clearCoronalData();
     shouldAutoFetchCoronalRef.current = false;
     pendingCoronalFetchRef.current = null;
-    prefetchRef.current = null;
-    prefetchingCRRef.current = null;
+    prefetchMapRef.current.clear();
+    prefetchingSetRef.current.clear();
     await fetchCarringtonData(
       rotationNum,
       false,
@@ -185,27 +193,28 @@ export default function SolarMagneticFieldGlobe() {
       ? currentCRNumber + 1
       : currentCRNumber - 1);
 
-    const prefetch = prefetchRef.current;
+    const prefetch = prefetchMapRef.current.get(newCRNumber);
     const prefetchHit = direction === 'next'
-      && prefetch?.crNumber === newCRNumber
+      && !!prefetch
       && prefetch.fitsReady
       && prefetch.coronalReady
       && prefetch.fitsData !== null;
 
-    // Clear prefetch slot so next CR gets prefetched after this one lands
-    prefetchRef.current = null;
-    prefetchingCRRef.current = null;
-
     if (prefetchHit && prefetch) {
-      // ── Fast path: use prefetched data directly ──────────────────────────
+      // ── Fast path: data already in memory ───────────────────────────────
+      console.log(`[navigate] CR ${newCRNumber} — prefetch HIT (instant)`);
       setDataSource(`CR${newCRNumber}.fits`);
       setFitsData(prefetch.fitsData);
-      setCurrentCRNumber(newCRNumber); // was missing — caused animation to stall at first CR
+      setCurrentCRNumber(newCRNumber);
       if (coronalData && prefetch.coronalData) {
         fetchCoronalData(newCRNumber);
       }
+      // Remove consumed entry; the prefetch effect will queue the next one
+      prefetchMapRef.current.delete(newCRNumber);
+      prefetchingSetRef.current.delete(newCRNumber);
     } else {
-      // ── Normal path: fetch as before ─────────────────────────────────────
+      // ── Normal path: fetch live ──────────────────────────────────────────
+      console.log(`[navigate] CR ${newCRNumber} — prefetch MISS (live fetch)`);
       if (coronalData !== null) {
         fetchCoronalData(newCRNumber);
         shouldAutoFetchCoronalRef.current = false;
@@ -231,8 +240,8 @@ export default function SolarMagneticFieldGlobe() {
     clearCoronalData();
     shouldAutoFetchCoronalRef.current = false;
     pendingCoronalFetchRef.current = null;
-    prefetchRef.current = null;
-    prefetchingCRRef.current = null;
+    prefetchMapRef.current.clear();
+    prefetchingSetRef.current.clear();
   };
 
   return (
