@@ -89,19 +89,15 @@ export default function SolarMagneticFieldGlobe() {
 
       // Prefetch FITS
       (async () => {
-        const t0 = performance.now();
-        console.log(`[prefetch] CR ${targetCR} FITS started`);
         try {
           const blob = await api.fetchCarringtonFits(targetCR);
           const file = new File([blob], `CR${targetCR}.fits`, { type: 'application/fits' });
           const parsed = await parseFITS(file);
           const e = prefetchMapRef.current.get(targetCR);
           if (e) { e.fitsData = parsed; e.fitsReady = true; }
-          console.log(`[prefetch] CR ${targetCR} FITS ready in ${(performance.now() - t0).toFixed(0)}ms`);
         } catch {
           const e = prefetchMapRef.current.get(targetCR);
           if (e) { e.fitsReady = true; e.fitsData = null; }
-          console.warn(`[prefetch] CR ${targetCR} FITS failed after ${(performance.now() - t0).toFixed(0)}ms`);
         }
       })();
 
@@ -202,7 +198,6 @@ export default function SolarMagneticFieldGlobe() {
 
     if (prefetchHit && prefetch) {
       // ── Fast path: data already in memory ───────────────────────────────
-      console.log(`[navigate] CR ${newCRNumber} — prefetch HIT (instant)`);
       setDataSource(`CR${newCRNumber}.fits`);
       setFitsData(prefetch.fitsData);
       setCurrentCRNumber(newCRNumber);
@@ -214,7 +209,6 @@ export default function SolarMagneticFieldGlobe() {
       prefetchingSetRef.current.delete(newCRNumber);
     } else {
       // ── Normal path: fetch live ──────────────────────────────────────────
-      console.log(`[navigate] CR ${newCRNumber} — prefetch MISS (live fetch)`);
       if (coronalData !== null) {
         fetchCoronalData(newCRNumber);
         shouldAutoFetchCoronalRef.current = false;

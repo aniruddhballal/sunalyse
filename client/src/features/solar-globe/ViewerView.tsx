@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import GlobeViewer from './GlobeViewer';
 import DisplaySettingsPanel from './components/DisplaySettingsPanel';
 import type { FITSData } from './fits/types';
@@ -72,19 +72,6 @@ export default function ViewerView({
       onNavigate(direction, getNextValidCR(currentCarringtonNumber, direction));
     }
   };
-
-  // Timing ref — records when each navigation starts
-  const navStartRef = useRef<{ cr: number; t: number } | null>(null);
-  useEffect(() => {
-    if (isPlaying && isNavigating && !navStartRef.current && currentCarringtonNumber !== undefined) {
-      navStartRef.current = { cr: currentCarringtonNumber, t: performance.now() };
-    }
-    if (!isNavigating && navStartRef.current) {
-      const ms = (performance.now() - navStartRef.current.t).toFixed(0);
-      console.log(`[anim] CR ${navStartRef.current.cr} → ${currentCarringtonNumber}: ${ms}ms`);
-      navStartRef.current = null;
-    }
-  }, [isNavigating]);
 
   // Play/pause animation — advances as soon as each CR finishes loading,
   // with a short dwell so the eye can register the change.
