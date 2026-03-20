@@ -4,7 +4,7 @@ import type { FITSData } from '../../fits/types';
 import type { CoronalData } from '../data/useCoronalFieldLines';
 import type { ThreeSceneRef, TransitionRef, FieldLineTransitionRef } from './sceneTypes';
 import { initThreeScene } from './sceneInit';
-import { buildFieldLines, buildPolarityMesh, buildFootpoints } from './sceneFieldLines.ts';
+import { buildFieldLines, buildPolarityMesh, buildFootpoints } from './sceneFieldLines';
 import { createDataTexture, createShaderMaterial, createTransitionShaderMaterial } from '../../utils/textureCreation';
 
 export const useThreeScene = (
@@ -41,16 +41,25 @@ export const useThreeScene = (
   useEffect(() => { visibleLightRef.current = visibleLight; }, [visibleLight]);
 
   // ── Scene init / teardown ────────────────────────────────────────────────
+  // fitsData is intentionally NOT in the dep array — adding it causes the
+  // effect to re-run on every CR navigation, tearing down the scene.
+  // Instead we use a fitsDataRef so the effect always sees the latest value
+  // even though it only runs when show2DMap changes.
+  const fitsDataRef = useRef(fitsData);
+  fitsDataRef.current = fitsData;
+
   useEffect(() => {
-    if (fitsData && !show2DMap && !sceneRef.current) {
+    const currentFitsData = fitsDataRef.current;
+
+    if (currentFitsData && !show2DMap && !sceneRef.current) {
       initThreeScene({
-        containerRef, fitsData, useFixedScale, fixedMin, fixedMax,
+        containerRef, fitsData: currentFitsData, useFixedScale, fixedMin, fixedMax,
         visibleLight, showGeographicPoles, showGraticule, showFootpoints,
         sceneRef, transitionRef, fieldLineTransitionRef,
         isRotatingRef, visibleLightRef,
       });
-      currentFitsDataRef.current = fitsData;
-    } else if (!fitsData || show2DMap) {
+      currentFitsDataRef.current = currentFitsData;
+    } else if (!currentFitsData || show2DMap) {
       if (sceneRef.current) {
         cancelAnimationFrame(sceneRef.current.animationId);
         if (sceneRef.current.renderer.domElement.parentNode === containerRef.current) {
@@ -60,6 +69,7 @@ export const useThreeScene = (
         sceneRef.current = null;
       }
     }
+
     return () => {
       if (show2DMap && sceneRef.current) {
         cancelAnimationFrame(sceneRef.current.animationId);

@@ -41,19 +41,26 @@ export function startAnimationLoop(params: AnimateParams): () => void {
       const rawProgress = Math.min(elapsed / transitionRef.current.duration, 1);
       const progress    = easeInOutCubic(rawProgress);
 
-      sphere.material.uniforms.mixFactor.value = progress;
-
-      if (rawProgress >= 1) {
-        const newDataTexture = sphere.material.uniforms.newDataMap.value;
-        const oldDataTexture = sphere.material.uniforms.oldDataMap.value;
-
-        const newMaterial = createShaderMaterial(newDataTexture, visibleLightRef.current);
-        sphere.material.dispose();
-        sphere.material = newMaterial;
-        if (oldDataTexture) oldDataTexture.dispose();
-
+      // Guard: if mixFactor is missing the material is not a transition material —
+      // abort the transition cleanly rather than crashing every frame.
+      if (!sphere.material.uniforms.mixFactor) {
         transitionRef.current.isTransitioning = false;
         if (sceneRef.current) sceneRef.current.pausedForTransition = false;
+      } else {
+        sphere.material.uniforms.mixFactor.value = progress;
+
+        if (rawProgress >= 1) {
+          const newDataTexture = sphere.material.uniforms.newDataMap?.value;
+          const oldDataTexture = sphere.material.uniforms.oldDataMap?.value;
+
+          const newMaterial = createShaderMaterial(newDataTexture, visibleLightRef.current);
+          sphere.material.dispose();
+          sphere.material = newMaterial;
+          if (oldDataTexture) oldDataTexture.dispose();
+
+          transitionRef.current.isTransitioning = false;
+          if (sceneRef.current) sceneRef.current.pausedForTransition = false;
+        }
       }
     }
 
